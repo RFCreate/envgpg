@@ -1,4 +1,10 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# shellcheck disable=SC2155
+
+if ! command -v gpg &> /dev/null; then
+    echo "Error: GPG is not installed." >&2
+    exit 1
+fi
 
 usage() {
     case "$command" in
@@ -40,7 +46,7 @@ usage() {
             ;;
     esac
     echo ""
-    exit 0
+    exit 1
 }
 
 # Check that there are arguments
@@ -55,32 +61,234 @@ else
     usage
 fi
 
-# Initialize flags
-export_flag=false
-mask_flag=false
-dry_run_flag=false
-remove_flag=false
-verbose_flag=false
-write_flag=false
-yes_flag=false
+get_file() {
+    local file_argument=$1
+    local file_default=$2
+    local file="${file_argument:-$file_default}"
 
-# Check for flag match
-OPTIND=1
-while getopts ":emnrwvy" opt; do
-    case $opt in
-        e) export_flag=true ;;
-        m) mask_flag=true ;;
-        n) dry_run_flag=true ;;
-        r) remove_flag=true ;;
-        w) write_flag=true ;;
-        v) verbose_flag=true ;;
-        y) yes_flag=true ;;
-        *) usage ;;
-    esac
-done
+    # Check if the file exists
+    if [ ! -f "$file" ]; then
+        echo "Error: File $file does not exist." >&2
+        exit 1
+    fi
+    printf "%s" "$file"
+}
 
-# Skip flags in script arguments
-shift "$((OPTIND - 1))"
+get_yes_no() {
+    local response="N"
+    local question=$1
+    read -r -p "$question [y/N] " response
+    [ "$response" != "y" ] && [ "$response" != "Y" ] && return 1
+    return 0
+}
+
+verify_encryption() {
+    local decrypted_file=$1
+    local encrypted_file=$2
+
+    # Check that both decrypted and encrypted files exist
+    if [ ! -f "$decrypted_file" ]; then
+        echo "Error: Decrypted file $decrypted_file does not exist." >&2
+        exit 1
+    fi
+    if [ ! -f "$encrypted_file" ]; then
+        echo "Error: Encrypted file $encrypted_file does not exist." >&2
+        exit 1
+    fi
+
+    # Verify that the decrypted file matches encrypted file
+    local temp_file="$(mktemp)"
+    gpg -d "$encrypted_file" -o "$temp_file"
+    cmp -s "$decrypted_file" "$temp_file"
+    local cmp_exit_code=$?
+    rm "$temp_file"
+
+    # Return the comparison exit code
+    return $cmp_exit_code
+}
+
+encrypt_file() {
+    # Initialize flags
+    local dry_run_flag=false
+    local remove_flag=false
+    local verbose_flag=false
+    local yes_flag=false
+
+    # Check for flag match
+    local OPTIND=1
+    while getopts ":nrvy" opt; do
+        case $opt in
+            n) dry_run_flag=true ;;
+            r) remove_flag=true ;;
+            v) verbose_flag=true ;;
+            y) yes_flag=true ;;
+            *) usage ;;
+        esac
+    done
+
+    # Skip flags in script arguments
+    shift "$((OPTIND - 1))"
+
+    # Set GPG yes argument
+    local gpg_yes_arg=""
+    if [ "$yes_flag" = true ]; then
+        gpg_yes_arg="--yes"
+    fi
+
+    # Get file argument
+    local file="$(get_file "$1" ".env")"
+    local encrypted_file="${file}.gpg"
+
+    # Handle dry run scenario
+    if [ "$dry_run_flag" = true ]; then
+        echo "Dry run: would generate $encrypted_file"
+        [ "$remove_flag" = true ] && echo "Dry run: would remove $file"
+        return 0
+    fi
+
+    # Encrypt the file using GPG
+    [ "$verbose_flag" = true ] && echo "Encrypting file: $file"
+    gpg $gpg_yes_arg -c -o "$encrypted_file" "$file"
+    [ "$verbose_flag" = true ] && echo "Generated $encrypted_file"
+
+    # Verify that the encryption was successful
+    if verify_encryption "$file" "$encrypted_file"; then
+        [ "$verbose_flag" = true ] && echo "Verification successful: $file matches $encrypted_file"
+    else
+        echo "Warning: $file and $encrypted_file do not match" >&2
+        exit 1
+    fi
+
+    # Remove the original file if requested
+    if [ "$remove_flag" = true ]; then
+        # Prompt for confirmation before removing the original file
+        if [ "$yes_flag" = false ]; then
+            get_yes_no "Are you sure you want to remove $file?" || return 0
+        fi
+        # Remove if confirmed
+        rm "$file"
+        [ "$verbose_flag" = true ] && echo "Removed original file: $file"
+    fi
+}
+
+decrypt_file() {
+    # Initialize flags
+    local export_flag=false
+    local mask_flag=false
+    local dry_run_flag=false
+    local verbose_flag=false
+    local write_flag=false
+    local yes_flag=false
+
+    # Check for flag match
+    local OPTIND=1
+    while getopts ":emnrwvy" opt; do
+        case $opt in
+            e) export_flag=true ;;
+            m) mask_flag=true ;;
+            n) dry_run_flag=true ;;
+            w) write_flag=true ;;
+            v) verbose_flag=true ;;
+            y) yes_flag=true ;;
+            *) usage ;;
+        esac
+    done
+
+    # Skip flags in script arguments
+    shift "$((OPTIND - 1))"
+
+    # Set GPG yes argument
+    local gpg_yes_arg=""
+    if [ "$yes_flag" = true ]; then
+        gpg_yes_arg="--yes"
+    fi
+
+    # Get file argument
+    local file="$(get_file "$1" ".env.gpg")"
+    local decrypted_file="${file%.gpg}"
+
+    # Handle dry run scenario
+    if [ "$dry_run_flag" = true ]; then
+        echo "Dry run: would decrypt $file"
+        [ "$write_flag" = true ] && echo "Dry run: would write to $decrypted_file"
+        return 0
+    fi
+
+    # Decrypt the file
+    [ "$verbose_flag" = true ] && echo "Decrypting file: $file"
+    local decrypted_temp_file="$(mktemp)"
+    gpg $gpg_yes_arg -d "$file" -o "$decrypted_temp_file"
+
+    # Mask the output if requested
+    if [ "$mask_flag" = true ]; then
+        sed -i 's/^\(.*\)=.*$/\1=****/' "$decrypted_temp_file"
+    fi
+
+    # Preprend export if requested
+    if [ "$export_flag" = true ]; then
+        sed -i 's/^\(.*\)=\(.*\)$/export \1=\2/' "$decrypted_temp_file"
+    fi
+
+    # Handle writing or standard output
+    if [ "$write_flag" = true ]; then
+        # Prompt for confirmation if the file already exists
+        if [ -f "$decrypted_file" ]; then
+            if [ "$yes_flag" = false ]; then
+                if ! get_yes_no "Are you sure you want to overwrite $decrypted_file?"; then
+                    rm "$decrypted_temp_file"
+                    return 0
+                fi
+            fi
+        fi
+        # Move if confirmed
+        mv "$decrypted_temp_file" "$decrypted_file"
+        [ "$verbose_flag" = true ] && echo "Decrypted to $decrypted_file"
+    else
+        cat "$decrypted_temp_file"
+        rm "$decrypted_temp_file"
+    fi
+}
+
+edit_file() {
+    # Get file argument
+    local file="$(get_file "$1" ".env.gpg")"
+
+    # Get editor
+    if [ -z "$EDITOR" ]; then
+        if command -v vim &> /dev/null; then
+            EDITOR=vim
+        elif command -v nano &> /dev/null; then
+            EDITOR=nano
+        else
+            echo "No editor found. Please set the EDITOR environment variable."
+            exit 1
+        fi
+    fi
+
+    # Open the decrypted file in the editor
+    local decrypted_temp_file="$(mktemp)"
+    gpg -d "$file" -o "$decrypted_temp_file"
+    "$EDITOR" "$decrypted_temp_file"
+
+    # Re-encrypt the file after editing
+    local encrypted_temp_file="$(mktemp)"
+    gpg -c -o "$encrypted_temp_file" "$decrypted_temp_file"
+
+    # Verify that the re-encryption was successful
+    verify_encryption "$decrypted_temp_file" "$encrypted_temp_file"
+    local verify_code=$?
+
+    # Remove the temporary file after verification
+    rm "$decrypted_temp_file"
+
+    # Check the result of the verification
+    if [ $verify_code -ne 0 ]; then
+        rm "$encrypted_temp_file"
+        echo "Warning: Re-encryption failed for $file" >&2
+        exit 1
+    fi
+    mv "$encrypted_temp_file" "$file"
+}
 
 # Check for command match
 case "$command" in
