@@ -6,6 +6,17 @@ if ! command -v gpg &> /dev/null; then
     exit 1
 fi
 
+temp_files=()
+
+cleanup_temp_files() {
+    local temp_file
+    for temp_file in "${temp_files[@]}"; do
+        rm -f -- "$temp_file"
+    done
+}
+
+trap cleanup_temp_files EXIT
+
 usage() {
     case "$command" in
         "encrypt")
@@ -97,11 +108,17 @@ verify_encryption() {
     fi
 
     # Verify that the decrypted file matches encrypted file
-    local temp_file="$(mktemp)"
-    gpg -d "$encrypted_file" -o "$temp_file"
+    local temp_file
+    temp_file="$(mktemp)" || return 1
+    temp_files+=("$temp_file")
+    rm -f "$temp_file"
+    if ! gpg -d -o "$temp_file" -- "$encrypted_file"; then
+        rm -f "$temp_file"
+        return 1
+    fi
     cmp -s "$decrypted_file" "$temp_file"
     local cmp_exit_code=$?
-    rm "$temp_file"
+    rm -f "$temp_file"
 
     # Return the comparison exit code
     return $cmp_exit_code
@@ -130,9 +147,9 @@ encrypt_file() {
     shift "$((OPTIND - 1))"
 
     # Set GPG yes argument
-    local gpg_yes_arg=""
+    local gpg_yes_args=()
     if [ "$yes_flag" = true ]; then
-        gpg_yes_arg="--yes"
+        gpg_yes_args+=(--yes)
     fi
 
     # Get file argument
@@ -148,7 +165,10 @@ encrypt_file() {
 
     # Encrypt the file using GPG
     [ "$verbose_flag" = true ] && echo "Encrypting file: $file"
-    gpg $gpg_yes_arg -c -o "$encrypted_file" "$file"
+    if ! gpg "${gpg_yes_args[@]}" -c -o "$encrypted_file" -- "$file"; then
+        echo "Error: Failed to encrypt $file." >&2
+        return 1
+    fi
     [ "$verbose_flag" = true ] && echo "Generated $encrypted_file"
 
     # Verify that the encryption was successful
@@ -169,6 +189,7 @@ encrypt_file() {
         rm "$file"
         [ "$verbose_flag" = true ] && echo "Removed original file: $file"
     fi
+    return 0
 }
 
 decrypt_file() {
@@ -198,9 +219,9 @@ decrypt_file() {
     shift "$((OPTIND - 1))"
 
     # Set GPG yes argument
-    local gpg_yes_arg=""
+    local gpg_yes_args=()
     if [ "$yes_flag" = true ]; then
-        gpg_yes_arg="--yes"
+        gpg_yes_args+=(--yes)
     fi
 
     # Get file argument
@@ -216,17 +237,30 @@ decrypt_file() {
 
     # Decrypt the file
     [ "$verbose_flag" = true ] && echo "Decrypting file: $file"
-    local decrypted_temp_file="$(mktemp)"
-    gpg $gpg_yes_arg -d "$file" -o "$decrypted_temp_file"
+    local decrypted_temp_file
+    decrypted_temp_file="$(mktemp)" || return 1
+    temp_files+=("$decrypted_temp_file")
+    rm -f "$decrypted_temp_file"
+    if ! gpg "${gpg_yes_args[@]}" -d -o "$decrypted_temp_file" -- "$file"; then
+        rm -f "$decrypted_temp_file"
+        echo "Error: Failed to decrypt $file." >&2
+        return 1
+    fi
 
     # Mask the output if requested
     if [ "$mask_flag" = true ]; then
-        sed -i 's/^\(.*\)=.*$/\1=****/' "$decrypted_temp_file"
+        if ! sed -i 's/^\(.*\)=.*$/\1=****/' "$decrypted_temp_file"; then
+            rm -f "$decrypted_temp_file"
+            return 1
+        fi
     fi
 
     # Preprend export if requested
     if [ "$export_flag" = true ]; then
-        sed -i 's/^\(.*\)=\(.*\)$/export \1=\2/' "$decrypted_temp_file"
+        if ! sed -i 's/^\(.*\)=\(.*\)$/export \1=\2/' "$decrypted_temp_file"; then
+            rm -f "$decrypted_temp_file"
+            return 1
+        fi
     fi
 
     # Handle writing or standard output
@@ -241,11 +275,17 @@ decrypt_file() {
             fi
         fi
         # Move if confirmed
-        mv "$decrypted_temp_file" "$decrypted_file"
+        if ! mv "$decrypted_temp_file" "$decrypted_file"; then
+            rm -f "$decrypted_temp_file"
+            return 1
+        fi
         [ "$verbose_flag" = true ] && echo "Decrypted to $decrypted_file"
+        return 0
     else
         cat "$decrypted_temp_file"
-        rm "$decrypted_temp_file"
+        local cat_exit_code=$?
+        rm -f "$decrypted_temp_file"
+        return $cat_exit_code
     fi
 }
 
@@ -266,24 +306,45 @@ edit_file() {
     fi
 
     # Open the decrypted file in the editor
-    local decrypted_temp_file="$(mktemp)"
-    gpg -d "$file" -o "$decrypted_temp_file"
-    "$EDITOR" "$decrypted_temp_file"
+    local decrypted_temp_file
+    decrypted_temp_file="$(mktemp)" || return 1
+    temp_files+=("$decrypted_temp_file")
+    rm -f "$decrypted_temp_file"
+    if ! gpg -d -o "$decrypted_temp_file" -- "$file"; then
+        rm -f "$decrypted_temp_file"
+        echo "Error: Failed to decrypt $file." >&2
+        return 1
+    fi
+    if ! "$EDITOR" "$decrypted_temp_file"; then
+        rm -f "$decrypted_temp_file"
+        echo "Error: Editor failed." >&2
+        return 1
+    fi
 
     # Re-encrypt the file after editing
-    local encrypted_temp_file="$(mktemp)"
-    gpg -c -o "$encrypted_temp_file" "$decrypted_temp_file"
+    local encrypted_temp_file
+    encrypted_temp_file="$(mktemp)" || {
+        rm -f "$decrypted_temp_file"
+        return 1
+    }
+    temp_files+=("$encrypted_temp_file")
+    rm -f "$encrypted_temp_file"
+    if ! gpg -c -o "$encrypted_temp_file" -- "$decrypted_temp_file"; then
+        rm -f "$decrypted_temp_file" "$encrypted_temp_file"
+        echo "Error: Failed to re-encrypt $file." >&2
+        return 1
+    fi
 
     # Verify that the re-encryption was successful
     verify_encryption "$decrypted_temp_file" "$encrypted_temp_file"
     local verify_code=$?
 
     # Remove the temporary file after verification
-    rm "$decrypted_temp_file"
+    rm -f "$decrypted_temp_file"
 
     # Check the result of the verification
     if [ $verify_code -ne 0 ]; then
-        rm "$encrypted_temp_file"
+        rm -f "$encrypted_temp_file"
         echo "Warning: Re-encryption failed for $file" >&2
         exit 1
     fi
