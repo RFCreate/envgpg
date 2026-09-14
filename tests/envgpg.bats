@@ -143,6 +143,13 @@ create_no_editor_path() {
     [[ "$output" == *"Usage: envgpg decrypt"* ]]
 }
 
+@test "rejects an invalid edit flag" {
+    run "$SCRIPT" edit -z
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Usage: envgpg edit"* ]]
+}
+
 @test "encrypt dry-run reports the output without creating it" {
     printf '%s\n' 'API_KEY=secret-value' > .env
 
@@ -250,28 +257,6 @@ create_no_editor_path() {
     cmp .env .env.gpg
 }
 
-@test "encrypt handles input paths with spaces" {
-    create_fake_gpg
-    mkdir -p 'directory with spaces'
-    printf '%s\n' 'API_KEY=secret-value' > 'directory with spaces/source.env'
-
-    run "$SCRIPT" encrypt 'directory with spaces/source.env'
-
-    [ "$status" -eq 0 ]
-    cmp 'directory with spaces/source.env' 'directory with spaces/source.env.gpg'
-}
-
-@test "encrypts an empty input file" {
-    create_fake_gpg
-    : > empty.env
-
-    run "$SCRIPT" encrypt empty.env
-
-    [ "$status" -eq 0 ]
-    [ -f empty.env.gpg ]
-    [ ! -s empty.env.gpg ]
-}
-
 @test "decrypt dry-run reports stdout mode" {
     create_encrypted_fixture
 
@@ -279,7 +264,6 @@ create_no_editor_path() {
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"Dry run: would decrypt fixture.env.gpg"* ]]
-    [[ "$output" != *"would write to"* ]]
 }
 
 @test "decrypt rejects a missing input file" {

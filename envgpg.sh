@@ -17,7 +17,7 @@ cleanup_temp_files() {
 trap cleanup_temp_files EXIT
 
 usage() {
-    case "$command" in
+    case "${command:-unknown}" in
         "encrypt")
             echo "Usage: envgpg encrypt [<flags>] [<file>]"
             echo "Description: Encrypt .env file using GPG."
@@ -50,12 +50,11 @@ usage() {
             echo "Usage: envgpg <command> [<flags>] [<file>]"
             echo ""
             echo "Commands:"
-            echo "  encrypt     encrypt .env file"
-            echo "  decrypt     decrypt .env file"
-            echo "  edit        edit encrypted .env in place"
+            echo "  encrypt     Encrypt .env file"
+            echo "  decrypt     Decrypt .env file"
+            echo "  edit        Edit encrypted .env"
             ;;
     esac
-    echo ""
     exit 1
 }
 
@@ -275,6 +274,13 @@ decrypt_file() {
 }
 
 edit_file() {
+    # Print usage on any flag
+    while getopts ":" opt; do
+        case $opt in
+            *) usage ;;
+        esac
+    done
+
     # Get file argument
     local file
     file="$(get_file "$1" ".env.gpg")" || return 1
