@@ -50,20 +50,14 @@ create_fake_gpg() {
 #!/usr/bin/env bash
 output=""
 input=""
-mode=""
-yes_flag=false
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        -c) mode=encrypt; shift ;;
-        -d) mode=decrypt; shift ;;
-        --yes) yes_flag=true; shift ;;
         -o) output=$2; shift 2 ;;
         --) input=$2; shift 2 ;;
         *) shift ;;
     esac
 done
 [ -n "$output" ] && [ -n "$input" ] || exit 1
-[ -e "$output" ] && [ "$yes_flag" = false ] && exit 1
 cp -- "$input" "$output"
 EOF
     chmod +x bin/gpg
@@ -235,14 +229,36 @@ create_no_editor_path() {
     [ -f .env.gpg ]
 }
 
-@test "encrypt refuses to overwrite an existing output without -y" {
+@test "encrypt overwrites an existing output with -y" {
     create_fake_gpg
     printf '%s\n' 'API_KEY=new-value' > .env
     printf '%s\n' 'OLD_CIPHERTEXT=1' > .env.gpg
 
-    run "$SCRIPT" encrypt .env
+    run "$SCRIPT" encrypt -y .env
 
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 0 ]
+    cmp .env .env.gpg
+}
+
+@test "encrypt accepts to overwrite an existing output" {
+    create_fake_gpg
+    printf '%s\n' 'API_KEY=new-value' > .env
+    printf '%s\n' 'OLD_CIPHERTEXT=1' > .env.gpg
+
+    run bash -c "printf 'y\n' | '$SCRIPT' encrypt .env"
+
+    [ "$status" -eq 0 ]
+    cmp .env .env.gpg
+}
+
+@test "encrypt declines to overwrite an existing output" {
+    create_fake_gpg
+    printf '%s\n' 'API_KEY=new-value' > .env
+    printf '%s\n' 'OLD_CIPHERTEXT=1' > .env.gpg
+
+    run bash -c "printf 'n\n' | '$SCRIPT' encrypt .env"
+
+    [ "$status" -eq 0 ]
     grep -Fx 'OLD_CIPHERTEXT=1' .env.gpg
 }
 

@@ -157,6 +157,17 @@ encrypt_file() {
         return 0
     fi
 
+    # Check if the encrypted file already exists
+    if [ -f "$encrypted_file" ]; then
+        if [ "$yes_flag" = false ]; then
+            if get_yes_no "Are you sure you want to overwrite $encrypted_file?"; then
+                rm -f "$encrypted_file"
+            else
+                return 0
+            fi
+        fi
+    fi
+
     # Encrypt the file using GPG
     [ "$verbose_flag" = true ] && echo "Encrypting file: $file"
     if ! gpg "${gpg_yes_args[@]}" -c -o "$encrypted_file" -- "$file"; then
@@ -180,8 +191,7 @@ encrypt_file() {
             get_yes_no "Are you sure you want to remove $file?" || return 0
         fi
         # Remove if confirmed
-        rm "$file"
-        [ "$verbose_flag" = true ] && echo "Removed original file: $file"
+        rm "$file" && [ "$verbose_flag" = true ] && echo "Removed original file: $file"
     fi
     return 0
 }
@@ -262,15 +272,12 @@ decrypt_file() {
             fi
         fi
         # Move if confirmed
-        mv "$decrypted_temp_file" "$decrypted_file"
-        local mv_exit_code=$?
-        [ "$verbose_flag" = true ] && echo "Decrypted to $decrypted_file"
-        return $mv_exit_code
+        mv "$decrypted_temp_file" "$decrypted_file" \
+            && [ "$verbose_flag" = true ] && echo "Decrypted to $decrypted_file"
     else
         cat "$decrypted_temp_file"
-        local cat_exit_code=$?
-        return $cat_exit_code
     fi
+    return 0
 }
 
 edit_file() {
