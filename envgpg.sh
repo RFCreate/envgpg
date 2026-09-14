@@ -19,40 +19,60 @@ trap cleanup_temp_files EXIT
 usage() {
     case "${command:-unknown}" in
         "encrypt")
-            echo "Usage: envgpg encrypt [<flags>] [<file>]"
-            echo "Description: Encrypt .env file using GPG."
-            echo "Options:"
-            echo "  -n        Dry run expected result"
-            echo "  -r        Remove original .env after encryption"
-            echo "  -v        Print verbose output"
-            echo "  -y        Assume yes for all prompts"
-            echo "  <file>    File to encrypt (default: .env)"
+            cat << 'EOF'
+Encrypt .env file using GPG.
+
+Usage: envgpg encrypt [<flags>] [<file>]
+
+Arguments:
+  <file>    File to encrypt (default: .env)
+
+Options:
+  -n        Dry run expected result
+  -r        Remove original .env after encryption
+  -v        Print verbose output
+  -y        Assume yes for all prompts
+EOF
             ;;
         "decrypt")
-            echo "Usage: envgpg decrypt [<flags>] [<file>]"
-            echo "Description: Decrypt the .env file using GPG to standard output."
-            echo "Options:"
-            echo "  -e        Prepend 'export' before each variable"
-            echo "  -m        Mask secrets in the output"
-            echo "  -n        Dry run expected result"
-            echo "  -v        Print verbose output"
-            echo "  -w        Write decrypted content to a file"
-            echo "  -y        Assume yes for all prompts"
-            echo "  <file>    File to decrypt (default: .env.gpg)"
+            cat << 'EOF'
+Decrypt .env file using GPG.
+
+Usage: envgpg decrypt [<flags>] [<file>]
+
+Arguments:
+  <file>    File to decrypt (default: .env.gpg)
+
+Options:
+  -e        Prepend 'export' before each variable
+  -m        Mask secrets in the output
+  -n        Dry run expected result
+  -v        Print verbose output
+  -w        Write decrypted content to a file
+  -y        Assume yes for all prompts
+EOF
             ;;
         "edit")
-            echo "Usage: envgpg edit [<file>]"
-            echo "Description: Edit encrypted .env file in \$EDITOR."
-            echo "Options:"
-            echo "  <file>    File to edit (default: .env.gpg)"
+            cat << 'EOF'
+Edit encrypted .env file in $EDITOR.
+
+Usage: envgpg edit [<file>]
+
+Arguments:
+  <file>    File to edit (default: .env.gpg)
+EOF
             ;;
         *)
-            echo "Usage: envgpg <command> [<flags>] [<file>]"
-            echo ""
-            echo "Commands:"
-            echo "  encrypt     Encrypt .env file"
-            echo "  decrypt     Decrypt .env file"
-            echo "  edit        Edit encrypted .env"
+            cat << 'EOF'
+EnvGPG - Manage .env files with GPG encryption
+
+Usage: envgpg <command> [<flags>] [<file>]
+
+Commands:
+  encrypt     Encrypt .env file
+  decrypt     Decrypt .env file
+  edit        Edit encrypted .env
+EOF
             ;;
     esac
     exit 1
@@ -178,7 +198,7 @@ encrypt_file() {
 
     # Verify that the encryption was successful
     if verify_encryption "$file" "$encrypted_file"; then
-        [ "$verbose_flag" = true ] && echo "Verification successful: $file matches $encrypted_file"
+        [ "$verbose_flag" = true ] && echo "Verification successful: $file matches $encrypted_file, safe to remove $file"
     else
         echo "Warning: $file and $encrypted_file do not match" >&2
         return 1
