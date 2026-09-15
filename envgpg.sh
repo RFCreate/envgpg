@@ -112,12 +112,13 @@ get_yes_no() {
     return 0
 }
 
-get_temp_filename() {
-    local result_variable=$1
-    local generated_path
-    generated_path="$(mktemp)" || return 1
-    temp_files+=("$generated_path")
-    printf -v "$result_variable" "%s" "$generated_path"
+mktemp_to_var() {
+    local var_name=$1
+    [ -z "$var_name" ] && return 1
+    local new_file
+    new_file="$(mktemp)" || return 1
+    temp_files+=("$new_file")
+    printf -v "$var_name" "%s" "$new_file"
 }
 
 verify_encryption() {
@@ -126,7 +127,7 @@ verify_encryption() {
 
     # Verify that the decrypted file matches encrypted file
     local temp_file
-    get_temp_filename temp_file || return 1
+    mktemp_to_var temp_file || return 1
     if ! gpg "${GPG_ARGS[@]}" -d -o "$temp_file" -- "$encrypted_file"; then
         return 1
     fi
@@ -245,7 +246,7 @@ decrypt_file() {
     # Decrypt the file
     [ "$verbose_flag" = true ] && echo "Decrypting file: $file"
     local decrypted_temp_file
-    get_temp_filename decrypted_temp_file || return 1
+    mktemp_to_var decrypted_temp_file || return 1
     if ! gpg "${GPG_ARGS[@]}" -d -o "$decrypted_temp_file" -- "$file"; then
         echo "Error: Failed to decrypt $file." >&2
         return 1
@@ -300,7 +301,7 @@ edit_file() {
 
     # Open the decrypted file in the editor
     local decrypted_temp_file
-    get_temp_filename decrypted_temp_file || return 1
+    mktemp_to_var decrypted_temp_file || return 1
     if ! gpg "${GPG_ARGS[@]}" -d -o "$decrypted_temp_file" -- "$file"; then
         echo "Error: Failed to decrypt $file." >&2
         return 1
@@ -312,7 +313,7 @@ edit_file() {
 
     # Re-encrypt the file after editing
     local encrypted_temp_file
-    get_temp_filename encrypted_temp_file || return 1
+    mktemp_to_var encrypted_temp_file || return 1
     if ! gpg "${GPG_ARGS[@]}" -c -o "$encrypted_temp_file" -- "$decrypted_temp_file"; then
         echo "Error: Failed to re-encrypt $file." >&2
         return 1
