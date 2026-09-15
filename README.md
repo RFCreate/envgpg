@@ -64,8 +64,8 @@ envgpg decrypt -e
 # Review the file without exposing secret values in the terminal
 envgpg decrypt -m
 
-# Restore .env from .env.gpg
-envgpg decrypt -w
+# Save decrypted content to a file
+envgpg decrypt > .env
 ```
 
 Edit the encrypted file in your configured editor:

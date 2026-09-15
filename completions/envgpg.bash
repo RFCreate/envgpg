@@ -8,7 +8,7 @@ _envgpg()
 
     commands=(encrypt decrypt edit)
     encrypt_options=(-n -r -v -y)
-    decrypt_options=(-e -m -n -v -w -y)
+    decrypt_options=(-e -m -n -v)
 
     if (( COMP_CWORD == 1 )); then
         COMPREPLY=( $(compgen -W "${commands[*]}" -- "$current") )

@@ -48,8 +48,6 @@ Options:
   -m        Mask secrets in the output
   -n        Dry run expected result
   -v        Print verbose output
-  -w        Write decrypted content to a file
-  -y        Assume yes for all prompts
 EOF
             ;;
         "edit")
@@ -159,12 +157,6 @@ encrypt_file() {
     # Skip flags in script arguments
     shift "$((OPTIND - 1))"
 
-    # Set GPG yes argument
-    local gpg_yes_args=()
-    if [ "$yes_flag" = true ]; then
-        gpg_yes_args+=(--yes)
-    fi
-
     # Get file argument
     local file
     file="$(get_file "$1" ".env")" || return 1
@@ -190,11 +182,11 @@ encrypt_file() {
 
     # Encrypt the file using GPG
     [ "$verbose_flag" = true ] && echo "Encrypting file: $file"
-    if ! gpg "${gpg_yes_args[@]}" -c -o "$encrypted_file" -- "$file"; then
+    if ! gpg -c -o "$encrypted_file" -- "$file"; then
         echo "Error: Failed to encrypt $file." >&2
         return 1
     fi
-    [ "$verbose_flag" = true ] && echo "Generated $encrypted_file"
+    [ "$verbose_flag" = true ] && echo "Generated file: $encrypted_file"
 
     # Verify that the encryption was successful
     if verify_encryption "$file" "$encrypted_file"; then
@@ -222,8 +214,6 @@ decrypt_file() {
     local mask_flag=false
     local dry_run_flag=false
     local verbose_flag=false
-    local write_flag=false
-    local yes_flag=false
 
     # Check for flag match
     local OPTIND=1
@@ -232,9 +222,7 @@ decrypt_file() {
             e) export_flag=true ;;
             m) mask_flag=true ;;
             n) dry_run_flag=true ;;
-            w) write_flag=true ;;
             v) verbose_flag=true ;;
-            y) yes_flag=true ;;
             *) usage ;;
         esac
     done
@@ -242,21 +230,13 @@ decrypt_file() {
     # Skip flags in script arguments
     shift "$((OPTIND - 1))"
 
-    # Set GPG yes argument
-    local gpg_yes_args=()
-    if [ "$yes_flag" = true ]; then
-        gpg_yes_args+=(--yes)
-    fi
-
     # Get file argument
     local file
     file="$(get_file "$1" ".env.gpg")" || return 1
-    local decrypted_file="${file%.gpg}"
 
     # Handle dry run scenario
     if [ "$dry_run_flag" = true ]; then
         echo "Dry run: would decrypt $file"
-        [ "$write_flag" = true ] && echo "Dry run: would write to $decrypted_file"
         return 0
     fi
 
@@ -264,7 +244,7 @@ decrypt_file() {
     [ "$verbose_flag" = true ] && echo "Decrypting file: $file"
     local decrypted_temp_file
     get_temp_file_name decrypted_temp_file || return 1
-    if ! gpg "${gpg_yes_args[@]}" -d -o "$decrypted_temp_file" -- "$file"; then
+    if ! gpg -d -o "$decrypted_temp_file" -- "$file"; then
         echo "Error: Failed to decrypt $file." >&2
         return 1
     fi
@@ -272,31 +252,23 @@ decrypt_file() {
     # Mask the output if requested
     if [ "$mask_flag" = true ]; then
         if ! sed -i 's/^\(.*\)=.*$/\1=****/' "$decrypted_temp_file"; then
+            echo "Error: Failed to mask $decrypted_temp_file." >&2
             return 1
         fi
+        [ "$verbose_flag" = true ] && echo "Masked secret values of all variables."
     fi
 
     # Preprend export if requested
     if [ "$export_flag" = true ]; then
         if ! sed -i 's/^\(.*\)=\(.*\)$/export \1=\2/' "$decrypted_temp_file"; then
+            echo "Error: Failed to prepend export to $decrypted_temp_file." >&2
             return 1
         fi
+        [ "$verbose_flag" = true ] && echo "Prepended export to all variables."
     fi
 
-    # Handle writing or standard output
-    if [ "$write_flag" = true ]; then
-        # Prompt for confirmation if the file already exists
-        if [ -f "$decrypted_file" ]; then
-            if [ "$yes_flag" = false ]; then
-                get_yes_no "Are you sure you want to overwrite $decrypted_file?" || return 0
-            fi
-        fi
-        # Move if confirmed
-        mv "$decrypted_temp_file" "$decrypted_file" \
-            && [ "$verbose_flag" = true ] && echo "Decrypted to $decrypted_file"
-    else
-        cat "$decrypted_temp_file"
-    fi
+    # Send the decrypted content to standard output
+    cat "$decrypted_temp_file"
     return 0
 }
 
@@ -360,7 +332,7 @@ edit_file() {
 case "$command" in
     "encrypt") encrypt_file "$@" ;;
     "decrypt") decrypt_file "$@" ;;
-    "edit") edit_file "$1" ;;
+    "edit") edit_file "$@" ;;
     *) usage ;;
 esac
 

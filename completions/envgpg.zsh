@@ -24,7 +24,7 @@ _envgpg() {
         decrypt)
             _arguments \
                 '1: :()' \
-                '(-e -m -n -v -w -y)'{-e,-m,-n,-v,-w,-y} \
+                '(-e -m -n -v)'{-e,-m,-n,-v} \
                 '*:file:_files'
             ;;
         edit)

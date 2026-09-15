@@ -11,7 +11,5 @@ complete -c envgpg -f -n '__fish_seen_subcommand_from decrypt' -s e -d "Prepend 
 complete -c envgpg -f -n '__fish_seen_subcommand_from decrypt' -s m -d 'Mask secrets in the output'
 complete -c envgpg -f -n '__fish_seen_subcommand_from decrypt' -s n -d 'Dry run expected result'
 complete -c envgpg -f -n '__fish_seen_subcommand_from decrypt' -s v -d 'Print verbose output'
-complete -c envgpg -f -n '__fish_seen_subcommand_from decrypt' -s w -d 'Write decrypted content to a file'
-complete -c envgpg -f -n '__fish_seen_subcommand_from decrypt' -s y -d 'Assume yes for all prompts'
 
 complete -c envgpg -n '__fish_seen_subcommand_from encrypt decrypt edit' -a '(__fish_complete_path)'

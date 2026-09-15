@@ -184,7 +184,7 @@ create_no_editor_path() {
     [ -f .env.gpg ]
 }
 
-@test "encrypt -r accepts interactive yes input" {
+@test "encrypt -r accepts to remove the original" {
     create_fake_gpg
     printf '%s\n' 'API_KEY=secret-value' > .env
 
@@ -195,7 +195,7 @@ create_no_editor_path() {
     [ -f .env.gpg ]
 }
 
-@test "encrypt -r preserves the original after interactive no input" {
+@test "encrypt -r declines to remove the original" {
     create_fake_gpg
     printf '%s\n' 'API_KEY=secret-value' > .env
 
@@ -331,68 +331,6 @@ create_no_editor_path() {
     [[ "$output" == *"export EMPTY_VALUE=****"* ]]
     [[ "$output" == *"# a comment"* ]]
     [[ "$output" != *"secret-value"* ]]
-}
-
-@test "writes decrypted content to a file" {
-    create_encrypted_fixture
-
-    run "$SCRIPT" decrypt -w fixture.env.gpg
-
-    [ "$status" -eq 0 ]
-    [ -f fixture.env ]
-    grep -Fx 'API_KEY=secret-value' fixture.env
-}
-
-@test "declines to overwrite an existing decrypted file" {
-    create_encrypted_fixture
-    printf '%s\n' 'KEEP_ME=1' > fixture.env
-
-    run bash -c "printf 'n\n' | '$SCRIPT' decrypt -w fixture.env.gpg"
-
-    [ "$status" -eq 0 ]
-    grep -Fx 'KEEP_ME=1' fixture.env
-}
-
-@test "accepts to overwrite an existing decrypted file" {
-    create_encrypted_fixture
-    printf '%s\n' 'OLD_VALUE=1' > fixture.env
-
-    run bash -c "printf 'y\n' | '$SCRIPT' decrypt -w fixture.env.gpg"
-
-    [ "$status" -eq 0 ]
-    grep -Fx 'API_KEY=secret-value' fixture.env
-    ! grep -Fx 'OLD_VALUE=1' fixture.env
-}
-
-@test "decrypt -y overwrites an existing decrypted file" {
-    create_encrypted_fixture
-    printf '%s\n' 'OLD_VALUE=1' > fixture.env
-
-    run "$SCRIPT" decrypt -w -y fixture.env.gpg
-
-    [ "$status" -eq 0 ]
-    grep -Fx 'API_KEY=secret-value' fixture.env
-    ! grep -Fx 'OLD_VALUE=1' fixture.env
-}
-
-@test "failed decryption does not overwrite the destination" {
-    printf '%s\n' 'KEEP_ME=1' > bad.env
-    printf '%s\n' 'not encrypted data' > bad.env.gpg
-
-    run "$SCRIPT" decrypt -w bad.env.gpg
-
-    [ "$status" -ne 0 ]
-    grep -Fx 'KEEP_ME=1' bad.env
-}
-
-@test "does not write to a file when gpg fails" {
-    create_fail_gpg
-    printf '%s\n' 'API_KEY=before' > fixture.env.gpg
-
-    run "$SCRIPT" decrypt -w fixture.env.gpg
-
-    [ "$status" -ne 0 ]
-    [ ! -f fixture.env ]
 }
 
 @test "edit rejects a missing input file" {
