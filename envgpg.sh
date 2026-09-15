@@ -5,6 +5,9 @@ if ! command -v gpg &> /dev/null; then
     exit 1
 fi
 
+# Non-interactive GPG arguments
+GPG_ARGS=(--batch --yes --quiet)
+
 temp_files=()
 
 cleanup_temp_files() {
@@ -109,12 +112,11 @@ get_yes_no() {
     return 0
 }
 
-get_temp_file_name() {
+get_temp_filename() {
     local result_variable=$1
     local generated_path
     generated_path="$(mktemp)" || return 1
     temp_files+=("$generated_path")
-    rm -f "$generated_path"
     printf -v "$result_variable" "%s" "$generated_path"
 }
 
@@ -124,8 +126,8 @@ verify_encryption() {
 
     # Verify that the decrypted file matches encrypted file
     local temp_file
-    get_temp_file_name temp_file || return 1
-    if ! gpg -d -o "$temp_file" -- "$encrypted_file"; then
+    get_temp_filename temp_file || return 1
+    if ! gpg "${GPG_ARGS[@]}" -d -o "$temp_file" -- "$encrypted_file"; then
         return 1
     fi
     cmp -s "$decrypted_file" "$temp_file"
@@ -182,7 +184,7 @@ encrypt_file() {
 
     # Encrypt the file using GPG
     [ "$verbose_flag" = true ] && echo "Encrypting file: $file"
-    if ! gpg -c -o "$encrypted_file" -- "$file"; then
+    if ! gpg "${GPG_ARGS[@]}" -c -o "$encrypted_file" -- "$file"; then
         echo "Error: Failed to encrypt $file." >&2
         return 1
     fi
@@ -243,8 +245,8 @@ decrypt_file() {
     # Decrypt the file
     [ "$verbose_flag" = true ] && echo "Decrypting file: $file"
     local decrypted_temp_file
-    get_temp_file_name decrypted_temp_file || return 1
-    if ! gpg -d -o "$decrypted_temp_file" -- "$file"; then
+    get_temp_filename decrypted_temp_file || return 1
+    if ! gpg "${GPG_ARGS[@]}" -d -o "$decrypted_temp_file" -- "$file"; then
         echo "Error: Failed to decrypt $file." >&2
         return 1
     fi
@@ -298,8 +300,8 @@ edit_file() {
 
     # Open the decrypted file in the editor
     local decrypted_temp_file
-    get_temp_file_name decrypted_temp_file || return 1
-    if ! gpg -d -o "$decrypted_temp_file" -- "$file"; then
+    get_temp_filename decrypted_temp_file || return 1
+    if ! gpg "${GPG_ARGS[@]}" -d -o "$decrypted_temp_file" -- "$file"; then
         echo "Error: Failed to decrypt $file." >&2
         return 1
     fi
@@ -310,8 +312,8 @@ edit_file() {
 
     # Re-encrypt the file after editing
     local encrypted_temp_file
-    get_temp_file_name encrypted_temp_file || return 1
-    if ! gpg -c -o "$encrypted_temp_file" -- "$decrypted_temp_file"; then
+    get_temp_filename encrypted_temp_file || return 1
+    if ! gpg "${GPG_ARGS[@]}" -c -o "$encrypted_temp_file" -- "$decrypted_temp_file"; then
         echo "Error: Failed to re-encrypt $file." >&2
         return 1
     fi
