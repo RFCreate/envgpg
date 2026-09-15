@@ -283,10 +283,6 @@ edit_file() {
         esac
     done
 
-    # Get file argument
-    local file
-    file="$(get_file "$1" ".env.gpg")" || return 1
-
     # Get editor
     if [ -z "$EDITOR" ]; then
         if command -v vim &> /dev/null; then
@@ -298,6 +294,10 @@ edit_file() {
             return 1
         fi
     fi
+
+    # Get file argument
+    local file
+    file="$(get_file "$1" ".env.gpg")" || return 1
 
     # Open the decrypted file in the editor
     local decrypted_temp_file

@@ -15,11 +15,17 @@ teardown_file() {
 setup() {
     export GNUPGHOME="$(cat "$BATS_FILE_TMPDIR/gnupg.path")"
     SCRIPT="$BATS_TEST_DIRNAME/../envgpg.sh"
-    BASH_PATH="$(command -v bash)"
     ORIGINAL_PATH="$PATH"
     WORKDIR="$BATS_TEST_TMPDIR/work"
     mkdir -p "$WORKDIR"
     cd "$WORKDIR"
+    PATH="$WORKDIR/bin:$PATH"
+    export PATH
+}
+
+teardown() {
+    PATH="$ORIGINAL_PATH"
+    export PATH
 }
 
 create_encrypted_fixture() {
@@ -40,8 +46,6 @@ create_fail_gpg() {
 exit 1
 EOF
     chmod +x bin/gpg
-    PATH="$WORKDIR/bin:$PATH"
-    export PATH
 }
 
 create_fake_gpg() {
@@ -61,18 +65,6 @@ done
 cp -- "$input" "$output"
 EOF
     chmod +x bin/gpg
-    PATH="$WORKDIR/bin:$PATH"
-    export PATH
-}
-
-create_mock_editor() {
-    cat > bin/mock-editor <<'EOF'
-#!/usr/bin/env bash
-printf '%s\n' 'EDITED_VALUE=updated' >> "$1"
-EOF
-    chmod +x bin/mock-editor
-    EDITOR="$WORKDIR/bin/mock-editor"
-    export EDITOR
 }
 
 create_fail_cmp() {
@@ -83,10 +75,18 @@ EOF
     chmod +x bin/cmp
 }
 
-restore_cmp() {
-    if [ -x "$WORKDIR/bin/cmp" ]; then
-        rm -f "$WORKDIR/bin/cmp"
-    fi
+remove_fail_cmp() {
+    rm -f bin/cmp
+}
+
+create_mock_editor() {
+    cat > bin/mock-editor <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' 'EDITED_VALUE=updated' >> "$1"
+EOF
+    chmod +x bin/mock-editor
+    EDITOR="$WORKDIR/bin/mock-editor"
+    export EDITOR
 }
 
 create_noop_editor() {
@@ -100,13 +100,12 @@ EOF
 }
 
 create_no_editor_path() {
+    BASH_PATH="$(command -v bash)"
     mkdir -p no-editor-bin
-    ln -s "$(command -v gpg)" no-editor-bin/gpg
-    ln -s "$(command -v bash)" no-editor-bin/bash
-    ln -s "$(command -v mktemp)" no-editor-bin/mktemp
-    ln -s "$(command -v rm)" no-editor-bin/rm
+    touch no-editor-bin/gpg
     PATH="$WORKDIR/no-editor-bin"
     export PATH
+    unset EDITOR
 }
 
 @test "prints usage and fails without a command" {
@@ -371,21 +370,17 @@ create_no_editor_path() {
     cp fixture.env.gpg original.env.gpg
 
     run "$SCRIPT" edit fixture.env.gpg
+    remove_fail_cmp
 
     [ "$status" -ne 0 ]
-    restore_cmp
     cmp fixture.env.gpg original.env.gpg
 }
 
 @test "edit fails when no editor is available" {
-    create_fake_gpg
     create_no_editor_path
-    unset EDITOR
     printf '%s\n' 'API_KEY=before' > fixture.env.gpg
 
     run "$BASH_PATH" "$SCRIPT" edit fixture.env.gpg
-    PATH="$ORIGINAL_PATH"
-    export PATH
 
     [ "$status" -eq 1 ]
     [[ "$output" == *"No editor found"* ]]
