@@ -32,7 +32,9 @@ create_encrypted_fixture() {
     printf '%s\n' \
         'API_KEY=secret-value' \
         'EMPTY_VALUE=' \
-        '# a comment' > source.env
+        '' \
+        '# a comment' \
+        'exec_command'  > source.env
     gpg --batch --yes --trust-model always \
         --recipient 'envgpg Bats Test <envgpg-bats@example.test>' \
         --output fixture.env.gpg --encrypt -- source.env
@@ -294,8 +296,16 @@ create_no_editor_path() {
     run "$SCRIPT" decrypt fixture.env.gpg
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"API_KEY=secret-value"* ]]
-    [[ "$output" == *"EMPTY_VALUE="* ]]
+    [ "$(echo "$output" | wc -l)" -eq 5 ]
+}
+
+@test "clean leaves only variable assignments" {
+    create_encrypted_fixture
+
+    run "$SCRIPT" decrypt -c fixture.env.gpg
+
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | wc -l)" -eq 2 ]
 }
 
 @test "masks values without masking comments" {
@@ -307,7 +317,9 @@ create_no_editor_path() {
     [[ "$output" == *"API_KEY=****"* ]]
     [[ "$output" == *"EMPTY_VALUE=****"* ]]
     [[ "$output" == *"# a comment"* ]]
+    [[ "$output" == *"exec_command"* ]]
     [[ "$output" != *"secret-value"* ]]
+    [ "$(echo "$output" | wc -l)" -eq 5 ]
 }
 
 @test "prepends export to variable assignments" {
@@ -318,6 +330,31 @@ create_no_editor_path() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"export API_KEY=secret-value"* ]]
     [[ "$output" == *"export EMPTY_VALUE="* ]]
+    [ "$(echo "$output" | wc -l)" -eq 5 ]
+    [ "$(echo "$output" | grep -c 'export ')" -eq 2 ]
+}
+
+@test "combines clean and masking transforms" {
+    create_encrypted_fixture
+
+    run "$SCRIPT" decrypt -c -m fixture.env.gpg
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"API_KEY=****"* ]]
+    [[ "$output" == *"EMPTY_VALUE=****"* ]]
+    [ "$(echo "$output" | wc -l)" -eq 2 ]
+}
+
+@test "combines export and clean transforms" {
+    create_encrypted_fixture
+
+    run "$SCRIPT" decrypt -e -c fixture.env.gpg
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"export API_KEY=secret-value"* ]]
+    [[ "$output" == *"export EMPTY_VALUE="* ]]
+    [ "$(echo "$output" | wc -l)" -eq 2 ]
+    [ "$(echo "$output" | grep -c 'export ')" -eq 2 ]
 }
 
 @test "combines export and masking transforms" {
@@ -329,7 +366,22 @@ create_no_editor_path() {
     [[ "$output" == *"export API_KEY=****"* ]]
     [[ "$output" == *"export EMPTY_VALUE=****"* ]]
     [[ "$output" == *"# a comment"* ]]
+    [[ "$output" == *"exec_command"* ]]
     [[ "$output" != *"secret-value"* ]]
+    [ "$(echo "$output" | wc -l)" -eq 5 ]
+    [ "$(echo "$output" | grep -c 'export ')" -eq 2 ]
+}
+
+@test "combines clean, masking, and export transforms" {
+    create_encrypted_fixture
+
+    run "$SCRIPT" decrypt -c -m -e fixture.env.gpg
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"export API_KEY=****"* ]]
+    [[ "$output" == *"export EMPTY_VALUE=****"* ]]
+    [ "$(echo "$output" | wc -l)" -eq 2 ]
+    [ "$(echo "$output" | grep -c 'export ')" -eq 2 ]
 }
 
 @test "edit rejects a missing input file" {

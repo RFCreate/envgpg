@@ -47,6 +47,7 @@ Arguments:
   <file>    File to decrypt (default: .env.gpg)
 
 Options:
+  -c        Clean by leaving only variables
   -e        Prepend 'export' before each variable
   -m        Mask secrets in the output
   -n        Dry run expected result
@@ -213,6 +214,7 @@ encrypt_file() {
 
 decrypt_file() {
     # Initialize flags
+    local clean_flag=false
     local export_flag=false
     local mask_flag=false
     local dry_run_flag=false
@@ -220,8 +222,9 @@ decrypt_file() {
 
     # Check for flag match
     local OPTIND=1
-    while getopts ":emnrwvy" opt; do
+    while getopts ":cemnrwvy" opt; do
         case $opt in
+            c) clean_flag=true ;;
             e) export_flag=true ;;
             m) mask_flag=true ;;
             n) dry_run_flag=true ;;
@@ -250,6 +253,15 @@ decrypt_file() {
     if ! gpg "${GPG_ARGS[@]}" -d -o "$decrypted_temp_file" -- "$file"; then
         echo "Error: Failed to decrypt $file." >&2
         return 1
+    fi
+
+    # Clean the decrypted file if requested
+    if [ "$clean_flag" = true ]; then
+        if ! sed -i '/^.*=.*$/!d' "$decrypted_temp_file"; then
+            echo "Error: Failed to clean $decrypted_temp_file." >&2
+            return 1
+        fi
+        [ "$verbose_flag" = true ] && echo "Cleaned file to leave only variables."
     fi
 
     # Mask the output if requested

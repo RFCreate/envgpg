@@ -82,7 +82,7 @@ After the editor closes, the file is re-encrypted, no plaintext copy remains.
 To automatically load environment variables from an encrypted `.env.gpg` file using `direnv`, add the following to your `.envrc`:
 
 ```sh
-eval "$(envgpg decrypt -e)"
+eval "$(envgpg decrypt -ce)"
 ```
 
 And allow `direnv` to load the environment:
