@@ -194,7 +194,7 @@ encrypt_file() {
 
     # Verify that the encryption was successful
     if verify_encryption "$file" "$encrypted_file"; then
-        [ "$verbose_flag" = true ] && echo "Verification successful: $file matches $encrypted_file, safe to remove $file"
+        [ "$verbose_flag" = true ] && echo "Verified: $file matches $encrypted_file, safe to remove $file"
     else
         echo "Warning: $file and $encrypted_file do not match" >&2
         return 1

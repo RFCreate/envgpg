@@ -173,6 +173,18 @@ create_no_editor_path() {
     [ -f .env.gpg ]
     cmp .env .env.gpg
 }
+@test "encrypts the input file from outside the current directory" {
+    create_fake_gpg
+    mkdir -p subdir
+    printf '%s\n' 'API_KEY=secret-value' > subdir/.env
+
+    run "$SCRIPT" encrypt subdir/.env
+
+    [ "$status" -eq 0 ]
+    [ -f subdir/.env ]
+    [ -f subdir/.env.gpg ]
+    cmp subdir/.env subdir/.env.gpg
+}
 
 @test "encrypt -r -y removes the original after encryption" {
     create_fake_gpg
