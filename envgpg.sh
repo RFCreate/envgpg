@@ -97,7 +97,7 @@ get_file() {
 
     # Check if the file exists
     if [ ! -f "$file" ]; then
-        echo "Error: File $file does not exist." >&2
+        echo "Error: File ${file} does not exist." >&2
         return 1
     fi
     printf "%s" "$file"
@@ -166,15 +166,15 @@ encrypt_file() {
 
     # Handle dry run scenario
     if [ "$dry_run_flag" = true ]; then
-        echo "Dry run: would generate $encrypted_file"
-        [ "$remove_flag" = true ] && echo "Dry run: would remove $file"
+        echo "Dry run: would generate ${encrypted_file}"
+        [ "$remove_flag" = true ] && echo "Dry run: would remove ${file}"
         return 0
     fi
 
     # Check if the encrypted file already exists
     if [ -f "$encrypted_file" ]; then
         if [ "$yes_flag" = false ]; then
-            if get_yes_no "Are you sure you want to overwrite $encrypted_file?"; then
+            if get_yes_no "Are you sure you want to overwrite ${encrypted_file}?"; then
                 shred -uf "$encrypted_file"
             else
                 return 0
@@ -183,18 +183,18 @@ encrypt_file() {
     fi
 
     # Encrypt the file using GPG
-    [ "$verbose_flag" = true ] && echo "Encrypting file: $file"
+    [ "$verbose_flag" = true ] && echo "Encrypting file: ${file}"
     if ! gpg "${GPG_ARGS[@]}" -c -o "$encrypted_file" -- "$file"; then
-        echo "Error: Failed to encrypt $file." >&2
+        echo "Error: Failed to encrypt ${file}." >&2
         return 1
     fi
-    [ "$verbose_flag" = true ] && echo "Generated file: $encrypted_file"
+    [ "$verbose_flag" = true ] && echo "Generated file: ${encrypted_file}"
 
     # Verify that the encryption was successful
     if verify_encryption "$file" "$encrypted_file"; then
-        [ "$verbose_flag" = true ] && echo "Verified: $file matches $encrypted_file, safe to remove $file"
+        [ "$verbose_flag" = true ] && echo "Verified: ${file} matches ${encrypted_file}, safe to remove ${file}"
     else
-        echo "Warning: $file and $encrypted_file do not match" >&2
+        echo "Error: ${file} and ${encrypted_file} do not match" >&2
         return 1
     fi
 
@@ -202,10 +202,10 @@ encrypt_file() {
     if [ "$remove_flag" = true ]; then
         # Prompt for confirmation before removing the original file
         if [ "$yes_flag" = false ]; then
-            get_yes_no "Are you sure you want to remove $file?" || return 0
+            get_yes_no "Are you sure you want to remove ${file}?" || return 0
         fi
         # Remove if confirmed
-        shred -uf "$file" && [ "$verbose_flag" = true ] && echo "Removed original file: $file"
+        shred -uf "$file" && [ "$verbose_flag" = true ] && echo "Removed original file: ${file}"
     fi
     return 0
 }
@@ -238,14 +238,14 @@ decrypt_file() {
     local decrypted_temp_file
     mktemp_to_var decrypted_temp_file || return 1
     if ! gpg "${GPG_ARGS[@]}" -d -o "$decrypted_temp_file" -- "$file"; then
-        echo "Error: Failed to decrypt $file." >&2
+        echo "Error: Failed to decrypt ${file}." >&2
         return 1
     fi
 
     # Clean the decrypted file if requested
     if [ "$clean_flag" = true ]; then
         if ! sed -i '/^\w\w*=.*$/!d' "$decrypted_temp_file"; then
-            echo "Error: Failed to clean $decrypted_temp_file." >&2
+            echo "Error: Failed to clean ${decrypted_temp_file}." >&2
             return 1
         fi
     fi
@@ -253,7 +253,7 @@ decrypt_file() {
     # Mask the output if requested
     if [ "$mask_flag" = true ]; then
         if ! sed -i 's/^\(\w\w*\)=.*$/\1=****/' "$decrypted_temp_file"; then
-            echo "Error: Failed to mask $decrypted_temp_file." >&2
+            echo "Error: Failed to mask ${decrypted_temp_file}." >&2
             return 1
         fi
     fi
@@ -261,7 +261,7 @@ decrypt_file() {
     # Prepend export if requested
     if [ "$export_flag" = true ]; then
         if ! sed -i 's/^\(\w\w*\)=\(.*\)$/export \1=\2/' "$decrypted_temp_file"; then
-            echo "Error: Failed to prepend export to $decrypted_temp_file." >&2
+            echo "Error: Failed to prepend export to ${decrypted_temp_file}." >&2
             return 1
         fi
     fi
@@ -299,7 +299,7 @@ edit_file() {
     local decrypted_temp_file
     mktemp_to_var decrypted_temp_file || return 1
     if ! gpg "${GPG_ARGS[@]}" -d -o "$decrypted_temp_file" -- "$file"; then
-        echo "Error: Failed to decrypt $file." >&2
+        echo "Error: Failed to decrypt ${file}." >&2
         return 1
     fi
     if ! "$EDITOR" "$decrypted_temp_file"; then
@@ -311,7 +311,7 @@ edit_file() {
     local encrypted_temp_file
     mktemp_to_var encrypted_temp_file || return 1
     if ! gpg "${GPG_ARGS[@]}" -c -o "$encrypted_temp_file" -- "$decrypted_temp_file"; then
-        echo "Error: Failed to re-encrypt $file." >&2
+        echo "Error: Failed to re-encrypt ${file}." >&2
         return 1
     fi
 
@@ -321,7 +321,7 @@ edit_file() {
 
     # Check the result of the verification
     if [ $verify_code -ne 0 ]; then
-        echo "Warning: Re-encryption failed for $file" >&2
+        echo "Error: Re-encryption verification failed for ${file}." >&2
         return 1
     fi
     mv "$encrypted_temp_file" "$file"

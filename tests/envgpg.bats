@@ -225,7 +225,7 @@ create_no_editor_path() {
 
     run "$SCRIPT" encrypt -r -y .env
 
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 1 ]
     [ -f .env ]
     [ ! -e .env.gpg ]
 }
@@ -237,7 +237,7 @@ create_no_editor_path() {
 
     run "$SCRIPT" encrypt -r -y .env
 
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 1 ]
     [ -f .env ]
     [ -f .env.gpg ]
 }
@@ -402,7 +402,7 @@ create_no_editor_path() {
 
     run "$SCRIPT" edit fixture.env.gpg
 
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 1 ]
     cmp fixture.env.gpg original.env.gpg
 }
 
@@ -413,7 +413,7 @@ create_no_editor_path() {
 
     run "$SCRIPT" edit fixture.env.gpg
 
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 1 ]
     cmp fixture.env.gpg original.env.gpg
 }
 
@@ -427,7 +427,7 @@ create_no_editor_path() {
     run "$SCRIPT" edit fixture.env.gpg
     remove_fail_cmp
 
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 1 ]
     cmp fixture.env.gpg original.env.gpg
 }
 
