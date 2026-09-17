@@ -8,6 +8,11 @@ fi
 # Non-interactive GPG arguments
 GPG_ARGS=(--batch --yes --quiet)
 
+# Set GPG cipher algorithm if specified
+if [ -n "$ENVGPG_CIPHER" ]; then
+    GPG_ARGS+=("--cipher-algo" "$ENVGPG_CIPHER")
+fi
+
 temp_files=()
 
 cleanup_temp_files() {
@@ -72,6 +77,9 @@ Commands:
   encrypt     Encrypt .env file
   decrypt     Decrypt .env file
   edit        Edit encrypted .env
+
+Environment Variables:
+  ENVGPG_CIPHER    GPG cipher algorithm for encryption
 EOF
             ;;
     esac

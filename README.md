@@ -50,6 +50,9 @@ envgpg encrypt
 
 # Encrypt and remove the plaintext source
 envgpg encrypt -r
+
+# Change the encryption algorithm
+ENVGPG_CIPHER="AES256" envgpg encrypt
 ```
 
 This creates `.env.gpg`. To inspect the decrypted contents:
