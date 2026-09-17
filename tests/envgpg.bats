@@ -286,15 +286,6 @@ create_no_editor_path() {
     cmp .env .env.gpg
 }
 
-@test "decrypt dry-run reports stdout mode" {
-    create_encrypted_fixture
-
-    run "$SCRIPT" decrypt -n fixture.env.gpg
-
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"Dry run: would decrypt fixture.env.gpg"* ]]
-}
-
 @test "decrypt rejects a missing input file" {
     run "$SCRIPT" decrypt missing.env
 

@@ -50,8 +50,6 @@ Options:
   -c        Clean by leaving only variables
   -e        Prepend 'export' before each variable
   -m        Mask secrets in the output
-  -n        Dry run expected result
-  -v        Print verbose output
 EOF
             ;;
         "edit")
@@ -217,18 +215,14 @@ decrypt_file() {
     local clean_flag=false
     local export_flag=false
     local mask_flag=false
-    local dry_run_flag=false
-    local verbose_flag=false
 
     # Check for flag match
     local OPTIND=1
-    while getopts ":cemnrwvy" opt; do
+    while getopts ":cem" opt; do
         case $opt in
             c) clean_flag=true ;;
             e) export_flag=true ;;
             m) mask_flag=true ;;
-            n) dry_run_flag=true ;;
-            v) verbose_flag=true ;;
             *) usage ;;
         esac
     done
@@ -240,14 +234,7 @@ decrypt_file() {
     local file
     file="$(get_file "$1" ".env.gpg")" || return 1
 
-    # Handle dry run scenario
-    if [ "$dry_run_flag" = true ]; then
-        echo "Dry run: would decrypt $file"
-        return 0
-    fi
-
     # Decrypt the file
-    [ "$verbose_flag" = true ] && echo "Decrypting file: $file"
     local decrypted_temp_file
     mktemp_to_var decrypted_temp_file || return 1
     if ! gpg "${GPG_ARGS[@]}" -d -o "$decrypted_temp_file" -- "$file"; then
@@ -261,7 +248,6 @@ decrypt_file() {
             echo "Error: Failed to clean $decrypted_temp_file." >&2
             return 1
         fi
-        [ "$verbose_flag" = true ] && echo "Cleaned file to leave only variables."
     fi
 
     # Mask the output if requested
@@ -270,7 +256,6 @@ decrypt_file() {
             echo "Error: Failed to mask $decrypted_temp_file." >&2
             return 1
         fi
-        [ "$verbose_flag" = true ] && echo "Masked secret values of all variables."
     fi
 
     # Prepend export if requested
@@ -279,7 +264,6 @@ decrypt_file() {
             echo "Error: Failed to prepend export to $decrypted_temp_file." >&2
             return 1
         fi
-        [ "$verbose_flag" = true ] && echo "Prepended export to all variables."
     fi
 
     # Send the decrypted content to standard output
