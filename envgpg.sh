@@ -13,7 +13,7 @@ temp_files=()
 cleanup_temp_files() {
     local temp_file
     for temp_file in "${temp_files[@]}"; do
-        rm -f -- "$temp_file"
+        [ -f "$temp_file" ] && shred -uf -- "$temp_file"
     done
 }
 
@@ -177,7 +177,7 @@ encrypt_file() {
     if [ -f "$encrypted_file" ]; then
         if [ "$yes_flag" = false ]; then
             if get_yes_no "Are you sure you want to overwrite $encrypted_file?"; then
-                rm -f "$encrypted_file"
+                shred -uf "$encrypted_file"
             else
                 return 0
             fi
@@ -207,7 +207,7 @@ encrypt_file() {
             get_yes_no "Are you sure you want to remove $file?" || return 0
         fi
         # Remove if confirmed
-        rm "$file" && [ "$verbose_flag" = true ] && echo "Removed original file: $file"
+        shred -uf "$file" && [ "$verbose_flag" = true ] && echo "Removed original file: $file"
     fi
     return 0
 }
