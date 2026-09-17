@@ -13,6 +13,11 @@ if [ -n "$ENVGPG_CIPHER" ]; then
     GPG_ARGS+=("--cipher-algo" "$ENVGPG_CIPHER")
 fi
 
+# Set GPG passphrase if specified
+if [ -n "$ENVGPG_PASSPHRASE" ]; then
+    GPG_ARGS+=("--passphrase" "$ENVGPG_PASSPHRASE" "--pinentry-mode" "loopback")
+fi
+
 temp_files=()
 
 cleanup_temp_files() {
@@ -79,7 +84,8 @@ Commands:
   edit        Edit encrypted .env
 
 Environment Variables:
-  ENVGPG_CIPHER    GPG cipher algorithm for encryption
+  ENVGPG_CIPHER         GPG cipher algorithm for encryption
+  ENVGPG_PASSPHRASE     GPG passphrase for encryption/decryption
 EOF
             ;;
     esac

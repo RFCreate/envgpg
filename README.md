@@ -96,6 +96,14 @@ direnv allow
 
 Note: You will be prompted for your GPG passphrase the first time `direnv` loads the environment and whenever the passphrase cache expires.
 
+## Use it in CI pipelines
+
+You can use `envgpg` in your CI pipelines to decrypt environment variables securely. For example:
+
+```sh
+eval "$(ENVGPG_PASSPHRASE="$GPG_PASSPHRASE" envgpg decrypt -ce)"
+```
+
 ## Security notes
 
 - Keep the GPG passphrase safe. Losing it means the encrypted file cannot be recovered by this tool.
