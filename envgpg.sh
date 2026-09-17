@@ -257,7 +257,7 @@ decrypt_file() {
 
     # Clean the decrypted file if requested
     if [ "$clean_flag" = true ]; then
-        if ! sed -i '/^.*=.*$/!d' "$decrypted_temp_file"; then
+        if ! sed -i '/^\w\w*=.*$/!d' "$decrypted_temp_file"; then
             echo "Error: Failed to clean $decrypted_temp_file." >&2
             return 1
         fi
@@ -266,16 +266,16 @@ decrypt_file() {
 
     # Mask the output if requested
     if [ "$mask_flag" = true ]; then
-        if ! sed -i 's/^\(.*\)=.*$/\1=****/' "$decrypted_temp_file"; then
+        if ! sed -i 's/^\(\w\w*\)=.*$/\1=****/' "$decrypted_temp_file"; then
             echo "Error: Failed to mask $decrypted_temp_file." >&2
             return 1
         fi
         [ "$verbose_flag" = true ] && echo "Masked secret values of all variables."
     fi
 
-    # Preprend export if requested
+    # Prepend export if requested
     if [ "$export_flag" = true ]; then
-        if ! sed -i 's/^\(.*\)=\(.*\)$/export \1=\2/' "$decrypted_temp_file"; then
+        if ! sed -i 's/^\(\w\w*\)=\(.*\)$/export \1=\2/' "$decrypted_temp_file"; then
             echo "Error: Failed to prepend export to $decrypted_temp_file." >&2
             return 1
         fi
