@@ -1,72 +1,38 @@
 #!/usr/bin/env bats
 
 setup_file() {
-    export GNUPGHOME="$(mktemp -d)"
-    printf '%s\n' "$GNUPGHOME" > "$BATS_FILE_TMPDIR/gnupg.path"
-    gpg --batch --passphrase '' \
-        --quick-generate-key 'envgpg Bats Test <envgpg-bats@example.test>' \
-        rsa2048 encrypt 1d >/dev/null 2>&1
-}
-
-teardown_file() {
-    rm -rf -- "$(cat "$BATS_FILE_TMPDIR/gnupg.path")"
+    export ORIGINAL_PATH="$PATH"
+    export SCRIPT="$BATS_TEST_DIRNAME/../envgpg.sh"
+    export MOCKSDIR="$BATS_TEST_DIRNAME/mocks"
 }
 
 setup() {
-    export GNUPGHOME="$(cat "$BATS_FILE_TMPDIR/gnupg.path")"
-    SCRIPT="$BATS_TEST_DIRNAME/../envgpg.sh"
-    ORIGINAL_PATH="$PATH"
+    export ENVGPG_PASSPHRASE="secret"
+    export ENVGPG_CIPHER="AES256"
     WORKDIR="$BATS_TEST_TMPDIR/work"
-    mkdir -p "$WORKDIR"
+    mkdir -p "$WORKDIR"/bin
     cd "$WORKDIR"
-    PATH="$WORKDIR/bin:$PATH"
-    export PATH
+    export PATH="$WORKDIR/bin:$PATH"
 }
 
 teardown() {
-    PATH="$ORIGINAL_PATH"
-    export PATH
+    export PATH="$ORIGINAL_PATH"
 }
 
 create_encrypted_fixture() {
-    printf '%s\n' \
-        'API_KEY=secret-value' \
-        'EMPTY_VALUE=' \
-        '' \
-        '# a comment' \
-        'exec_command'  > source.env
-    gpg --batch --yes --trust-model always \
-        --recipient 'envgpg Bats Test <envgpg-bats@example.test>' \
-        --output fixture.env.gpg --encrypt -- source.env
-    rm source.env
+    cp "$MOCKSDIR/test.env.gpg" .
 }
 
-create_fail_gpg() {
-    mkdir -p bin
-    cat > bin/gpg <<'EOF'
-#!/usr/bin/env bash
-exit 1
-EOF
-    chmod +x bin/gpg
+create_decrypted_fixture() {
+    cp "$MOCKSDIR/test.env" .
 }
 
-create_fake_gpg() {
-    mkdir -p bin
-    cat > bin/gpg <<'EOF'
-#!/usr/bin/env bash
-output=""
-input=""
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        -o) output=$2; shift 2 ;;
-        --) input=$2; shift 2 ;;
-        *) shift ;;
-    esac
-done
-[ -n "$output" ] && [ -n "$input" ] || exit 1
-cp -- "$input" "$output"
-EOF
-    chmod +x bin/gpg
+set_gpg_encrypt_fail() {
+    export ENVGPG_CIPHER="INVALID"
+}
+
+set_gpg_decrypt_fail() {
+    export ENVGPG_PASSPHRASE="unknown"
 }
 
 create_fail_cmp() {
@@ -145,16 +111,6 @@ create_no_editor_path() {
     [[ "$output" == *"Usage: envgpg edit"* ]]
 }
 
-@test "encrypt dry-run reports the output without creating it" {
-    printf '%s\n' 'API_KEY=secret-value' > .env
-
-    run "$SCRIPT" encrypt -n .env
-
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"Dry run: would generate .env.gpg"* ]]
-    [ ! -e .env.gpg ]
-}
-
 @test "encrypt rejects a missing input file" {
     run "$SCRIPT" encrypt missing.env
 
@@ -162,128 +118,131 @@ create_no_editor_path() {
     [[ "$output" == *"Error: File missing.env does not exist."* ]]
 }
 
-@test "encrypts the input file and preserves the original" {
-    create_fake_gpg
-    printf '%s\n' 'API_KEY=secret-value' > .env
+@test "encrypt dry-run reports the output without creating it" {
+    create_decrypted_fixture
 
-    run "$SCRIPT" encrypt .env
+    run "$SCRIPT" encrypt -n test.env
 
     [ "$status" -eq 0 ]
-    [ -f .env ]
-    [ -f .env.gpg ]
-    cmp .env .env.gpg
+    [[ "$output" == *"Dry run: would generate test.env.gpg"* ]]
+    [ ! -e test.env.gpg ]
 }
-@test "encrypts the input file from outside the current directory" {
-    create_fake_gpg
+
+@test "encrypt dry-run with remove flag reports the output without creating it" {
+    create_decrypted_fixture
+
+    run "$SCRIPT" encrypt -n -r test.env
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Dry run: would generate test.env.gpg"* ]]
+    [[ "$output" == *"Dry run: would remove test.env"* ]]
+    [ ! -e test.env.gpg ]
+}
+
+@test "encrypt preserves the original" {
+    create_decrypted_fixture
+
+    run "$SCRIPT" encrypt test.env
+
+    [ "$status" -eq 0 ]
+    [ -f test.env ]
+    [ -f test.env.gpg ]
+}
+
+@test "encrypt from outside the current directory" {
+    create_decrypted_fixture
     mkdir -p subdir
-    printf '%s\n' 'API_KEY=secret-value' > subdir/.env
+    mv test.env subdir
 
-    run "$SCRIPT" encrypt subdir/.env
+    run "$SCRIPT" encrypt subdir/test.env
 
     [ "$status" -eq 0 ]
-    [ -f subdir/.env ]
-    [ -f subdir/.env.gpg ]
-    cmp subdir/.env subdir/.env.gpg
+    [ -f subdir/test.env ]
+    [ -f subdir/test.env.gpg ]
 }
 
-@test "encrypt -r -y removes the original after encryption" {
-    create_fake_gpg
-    printf '%s\n' 'API_KEY=secret-value' > .env
+@test "encrypt -r -y removes the original" {
+    create_decrypted_fixture
 
-    run "$SCRIPT" encrypt -r -y .env
+    run "$SCRIPT" encrypt -r -y test.env
 
     [ "$status" -eq 0 ]
-    [ ! -e .env ]
-    [ -f .env.gpg ]
+    [ ! -e test.env ]
+    [ -f test.env.gpg ]
 }
 
 @test "encrypt -r accepts to remove the original" {
-    create_fake_gpg
-    printf '%s\n' 'API_KEY=secret-value' > .env
+    create_decrypted_fixture
 
-    run bash -c "printf 'y\n' | '$SCRIPT' encrypt -r .env"
+    run bash -c "printf 'y\n' | '$SCRIPT' encrypt -r test.env"
 
     [ "$status" -eq 0 ]
-    [ ! -e .env ]
-    [ -f .env.gpg ]
+    [ ! -e test.env ]
+    [ -f test.env.gpg ]
 }
 
 @test "encrypt -r declines to remove the original" {
-    create_fake_gpg
-    printf '%s\n' 'API_KEY=secret-value' > .env
+    create_decrypted_fixture
 
-    run bash -c "printf 'n\n' | '$SCRIPT' encrypt -r .env"
+    run bash -c "printf 'n\n' | '$SCRIPT' encrypt -r test.env"
 
     [ "$status" -eq 0 ]
-    [ -f .env ]
-    [ -f .env.gpg ]
+    [ -f test.env ]
+    [ -f test.env.gpg ]
 }
 
-@test "encryption failure preserves the original file" {
-    create_fail_gpg
-    printf '%s\n' 'API_KEY=secret-value' > .env
+@test "encrypt failure preserves the original file" {
+    create_decrypted_fixture
+    set_gpg_encrypt_fail
 
-    run "$SCRIPT" encrypt -r -y .env
+    run "$SCRIPT" encrypt -r -y test.env
 
     [ "$status" -eq 1 ]
-    [ -f .env ]
-    [ ! -e .env.gpg ]
+    [[ "$output" == *"Error: Failed to encrypt test.env."* ]]
+    [ -f test.env ]
+    [ ! -e test.env.gpg ]
 }
 
-@test "encryption verification failure preserves the original file" {
-    create_fake_gpg
+@test "encrypt verification failure preserves the original file" {
+    create_decrypted_fixture
     create_fail_cmp
-    printf '%s\n' 'API_KEY=secret-value' > .env
 
-    run "$SCRIPT" encrypt -r -y .env
+    run "$SCRIPT" encrypt -r -y test.env
 
     [ "$status" -eq 1 ]
-    [ -f .env ]
-    [ -f .env.gpg ]
+    [[ "$output" == *"Error: test.env and test.env.gpg do not match"* ]]
+    [ -f test.env ]
+    [ -f test.env.gpg ]
 }
 
 @test "encrypt overwrites an existing output with -y" {
-    create_fake_gpg
-    printf '%s\n' 'API_KEY=new-value' > .env
-    printf '%s\n' 'OLD_CIPHERTEXT=1' > .env.gpg
+    create_decrypted_fixture
+    printf '%s\n' 'OLD_CIPHERTEXT=1' > test.env.gpg
 
-    run "$SCRIPT" encrypt -y .env
+    run "$SCRIPT" encrypt -y test.env
 
     [ "$status" -eq 0 ]
-    cmp .env .env.gpg
+    ! grep -Fx 'OLD_CIPHERTEXT=1' test.env.gpg
 }
 
 @test "encrypt accepts to overwrite an existing output" {
-    create_fake_gpg
-    printf '%s\n' 'API_KEY=new-value' > .env
-    printf '%s\n' 'OLD_CIPHERTEXT=1' > .env.gpg
+    create_decrypted_fixture
+    printf '%s\n' 'OLD_CIPHERTEXT=1' > test.env.gpg
 
-    run bash -c "printf 'y\n' | '$SCRIPT' encrypt .env"
+    run bash -c "printf 'y\n' | '$SCRIPT' encrypt test.env"
 
     [ "$status" -eq 0 ]
-    cmp .env .env.gpg
+    ! grep -Fx 'OLD_CIPHERTEXT=1' test.env.gpg
 }
 
 @test "encrypt declines to overwrite an existing output" {
-    create_fake_gpg
-    printf '%s\n' 'API_KEY=new-value' > .env
-    printf '%s\n' 'OLD_CIPHERTEXT=1' > .env.gpg
+    create_decrypted_fixture
+    printf '%s\n' 'OLD_CIPHERTEXT=1' > test.env.gpg
 
-    run bash -c "printf 'n\n' | '$SCRIPT' encrypt .env"
-
-    [ "$status" -eq 0 ]
-    grep -Fx 'OLD_CIPHERTEXT=1' .env.gpg
-}
-
-@test "encrypt -y overwrites an existing output" {
-    create_fake_gpg
-    printf '%s\n' 'API_KEY=new-value' > .env
-    printf '%s\n' 'OLD_CIPHERTEXT=1' > .env.gpg
-
-    run "$SCRIPT" encrypt -y .env
+    run bash -c "printf 'n\n' | '$SCRIPT' encrypt test.env"
 
     [ "$status" -eq 0 ]
-    cmp .env .env.gpg
+    grep -Fx 'OLD_CIPHERTEXT=1' test.env.gpg
 }
 
 @test "decrypt rejects a missing input file" {
@@ -293,28 +252,40 @@ create_no_editor_path() {
     [[ "$output" == *"Error: File missing.env does not exist."* ]]
 }
 
-@test "decrypts to standard output" {
+@test "decrypt to standard output" {
     create_encrypted_fixture
 
-    run "$SCRIPT" decrypt fixture.env.gpg
+    run "$SCRIPT" decrypt test.env.gpg
 
     [ "$status" -eq 0 ]
-    [ "$(echo "$output" | wc -l)" -eq 5 ]
+    cmp "$MOCKSDIR/test.env" <(echo "$output")
 }
 
-@test "clean leaves only variable assignments" {
+@test "decrypt rejects when gpg decryption fails" {
+    create_encrypted_fixture
+    set_gpg_decrypt_fail
+
+    run "$SCRIPT" decrypt test.env.gpg
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Error: Failed to decrypt test.env.gpg."* ]]
+}
+
+@test "decrypt clean leaves only variable assignments" {
     create_encrypted_fixture
 
-    run "$SCRIPT" decrypt -c fixture.env.gpg
+    run "$SCRIPT" decrypt -c test.env.gpg
 
     [ "$status" -eq 0 ]
+    [[ "$output" == *"API_KEY=secret-value"* ]]
+    [[ "$output" == *"EMPTY_VALUE="* ]]
     [ "$(echo "$output" | wc -l)" -eq 2 ]
 }
 
-@test "masks values without masking comments" {
+@test "decrypt masks values without masking comments" {
     create_encrypted_fixture
 
-    run "$SCRIPT" decrypt -m fixture.env.gpg
+    run "$SCRIPT" decrypt -m test.env.gpg
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"API_KEY=****"* ]]
@@ -324,10 +295,10 @@ create_no_editor_path() {
     [ "$(echo "$output" | grep -cF '****')" -eq 2 ]
 }
 
-@test "prepends export to variable assignments" {
+@test "decrypt prepends export to variable assignments" {
     create_encrypted_fixture
 
-    run "$SCRIPT" decrypt -e fixture.env.gpg
+    run "$SCRIPT" decrypt -e test.env.gpg
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"export API_KEY=secret-value"* ]]
@@ -336,10 +307,10 @@ create_no_editor_path() {
     [ "$(echo "$output" | grep -c 'export ')" -eq 2 ]
 }
 
-@test "combines clean and masking transforms" {
+@test "decrypt combines clean and masking transforms" {
     create_encrypted_fixture
 
-    run "$SCRIPT" decrypt -c -m fixture.env.gpg
+    run "$SCRIPT" decrypt -c -m test.env.gpg
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"API_KEY=****"* ]]
@@ -349,10 +320,10 @@ create_no_editor_path() {
     [ "$(echo "$output" | grep -cF '****')" -eq 2 ]
 }
 
-@test "combines export and clean transforms" {
+@test "decrypt combines export and clean transforms" {
     create_encrypted_fixture
 
-    run "$SCRIPT" decrypt -e -c fixture.env.gpg
+    run "$SCRIPT" decrypt -e -c test.env.gpg
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"export API_KEY=secret-value"* ]]
@@ -361,10 +332,10 @@ create_no_editor_path() {
     [ "$(echo "$output" | grep -c 'export ')" -eq 2 ]
 }
 
-@test "combines export and masking transforms" {
+@test "decrypt combines export and masking transforms" {
     create_encrypted_fixture
 
-    run "$SCRIPT" decrypt -e -m fixture.env.gpg
+    run "$SCRIPT" decrypt -e -m test.env.gpg
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"export API_KEY=****"* ]]
@@ -375,10 +346,10 @@ create_no_editor_path() {
     [ "$(echo "$output" | grep -cF '****')" -eq 2 ]
 }
 
-@test "combines clean, masking, and export transforms" {
+@test "decrypt combines clean, masking, and export transforms" {
     create_encrypted_fixture
 
-    run "$SCRIPT" decrypt -c -m -e fixture.env.gpg
+    run "$SCRIPT" decrypt -c -m -e test.env.gpg
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"export API_KEY=****"* ]]
@@ -398,71 +369,78 @@ create_no_editor_path() {
 
 @test "edit preserves the encrypted file when the editor fails" {
     create_encrypted_fixture
-    cp fixture.env.gpg original.env.gpg
     EDITOR=false
     export EDITOR
 
-    run "$SCRIPT" edit fixture.env.gpg
+    run "$SCRIPT" edit test.env.gpg
 
     [ "$status" -eq 1 ]
-    cmp fixture.env.gpg original.env.gpg
+    [[ "$output" == *"Error: Editor failed."* ]]
+    cmp "$MOCKSDIR/test.env.gpg" test.env.gpg
 }
 
-@test "edit preserves the encrypted file when gpg fails" {
-    create_fail_gpg
-    printf '%s\n' 'API_KEY=before' > fixture.env.gpg
-    cp fixture.env.gpg original.env.gpg
+@test "edit preserves the encrypted file when gpg decryption fails" {
+    create_encrypted_fixture
+    set_gpg_decrypt_fail
 
-    run "$SCRIPT" edit fixture.env.gpg
+    run "$SCRIPT" edit test.env.gpg
 
     [ "$status" -eq 1 ]
-    cmp fixture.env.gpg original.env.gpg
+    [[ "$output" == *"Error: Failed to decrypt test.env.gpg."* ]]
+    cmp "$MOCKSDIR/test.env.gpg" test.env.gpg
+}
+
+@test "edit preserves the encrypted file when gpg encryption fails" {
+    create_encrypted_fixture
+    create_mock_editor
+    set_gpg_encrypt_fail
+
+    run "$SCRIPT" edit test.env.gpg
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Error: Failed to re-encrypt test.env.gpg."* ]]
+    cmp "$MOCKSDIR/test.env.gpg" test.env.gpg
 }
 
 @test "edit preserves the encrypted file when verification fails" {
-    create_fake_gpg
+    create_encrypted_fixture
     create_mock_editor
     create_fail_cmp
-    printf '%s\n' 'API_KEY=before' > fixture.env.gpg
-    cp fixture.env.gpg original.env.gpg
 
-    run "$SCRIPT" edit fixture.env.gpg
+    run "$SCRIPT" edit test.env.gpg
     remove_fail_cmp
 
     [ "$status" -eq 1 ]
-    cmp fixture.env.gpg original.env.gpg
+    [[ "$output" == *"Error: Re-encryption verification failed for test.env.gpg."* ]]
+    cmp "$MOCKSDIR/test.env.gpg" test.env.gpg
 }
 
 @test "edit fails when no editor is available" {
+    create_encrypted_fixture
     create_no_editor_path
-    printf '%s\n' 'API_KEY=before' > fixture.env.gpg
 
-    run "$BASH_PATH" "$SCRIPT" edit fixture.env.gpg
+    run "$BASH_PATH" "$SCRIPT" edit test.env.gpg
 
     [ "$status" -eq 1 ]
     [[ "$output" == *"No editor found"* ]]
 }
 
-@test "edit preserves encrypted content when the editor makes no changes" {
-    create_fake_gpg
+@test "edit re-encrypts content when the editor makes no changes" {
+    create_encrypted_fixture
     create_noop_editor
-    printf '%s\n' 'API_KEY=unchanged' > fixture.env.gpg
-    cp fixture.env.gpg original.env.gpg
 
-    run "$SCRIPT" edit fixture.env.gpg
+    run "$SCRIPT" edit test.env.gpg
 
     [ "$status" -eq 0 ]
-    cmp fixture.env.gpg original.env.gpg
+    ! cmp "$MOCKSDIR/test.env.gpg" test.env.gpg
 }
 
 @test "edit re-encrypts content changed by a mock editor" {
-    create_fake_gpg
+    create_encrypted_fixture
     create_mock_editor
-    printf '%s\n' 'API_KEY=before' > fixture.env.gpg
 
-    run "$SCRIPT" edit fixture.env.gpg
+    run "$SCRIPT" edit test.env.gpg
 
     [ "$status" -eq 0 ]
-    grep -Fx 'API_KEY=before' fixture.env.gpg
-    grep -Fx 'EDITED_VALUE=updated' fixture.env.gpg
+    ! cmp "$MOCKSDIR/test.env.gpg" test.env.gpg
 }

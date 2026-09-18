@@ -8,9 +8,12 @@ fi
 # Non-interactive GPG arguments
 GPG_ARGS=(--batch --yes --quiet)
 
+# Specific GPG arguments for encryption
+GPG_ENCRYPT_ARGS=()
+
 # Set GPG cipher algorithm if specified
 if [ -n "$ENVGPG_CIPHER" ]; then
-    GPG_ARGS+=("--cipher-algo" "$ENVGPG_CIPHER")
+    GPG_ENCRYPT_ARGS+=("--cipher-algo" "$ENVGPG_CIPHER")
 fi
 
 # Set GPG passphrase if specified
@@ -198,7 +201,7 @@ encrypt_file() {
 
     # Encrypt the file using GPG
     [ "$verbose_flag" = true ] && echo "Encrypting file: ${file}"
-    if ! gpg "${GPG_ARGS[@]}" -c -o "$encrypted_file" -- "$file"; then
+    if ! gpg "${GPG_ARGS[@]}" "${GPG_ENCRYPT_ARGS[@]}" -c -o "$encrypted_file" -- "$file"; then
         echo "Error: Failed to encrypt ${file}." >&2
         return 1
     fi
@@ -300,7 +303,7 @@ edit_file() {
         elif command -v nano &> /dev/null; then
             EDITOR=nano
         else
-            echo "No editor found. Please set the EDITOR environment variable."
+            echo "No editor found. Please set the EDITOR environment variable." >&2
             return 1
         fi
     fi
@@ -324,7 +327,7 @@ edit_file() {
     # Re-encrypt the file after editing
     local encrypted_temp_file
     mktemp_to_var encrypted_temp_file || return 1
-    if ! gpg "${GPG_ARGS[@]}" -c -o "$encrypted_temp_file" -- "$decrypted_temp_file"; then
+    if ! gpg "${GPG_ARGS[@]}" "${GPG_ENCRYPT_ARGS[@]}" -c -o "$encrypted_temp_file" -- "$decrypted_temp_file"; then
         echo "Error: Failed to re-encrypt ${file}." >&2
         return 1
     fi
