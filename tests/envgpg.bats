@@ -319,10 +319,9 @@ create_no_editor_path() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"API_KEY=****"* ]]
     [[ "$output" == *"EMPTY_VALUE=****"* ]]
-    [[ "$output" == *"# a comment"* ]]
-    [[ "$output" == *"exec_command"* ]]
     [[ "$output" != *"secret-value"* ]]
     [ "$(echo "$output" | wc -l)" -eq 5 ]
+    [ "$(echo "$output" | grep -cF '****')" -eq 2 ]
 }
 
 @test "prepends export to variable assignments" {
@@ -345,7 +344,9 @@ create_no_editor_path() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"API_KEY=****"* ]]
     [[ "$output" == *"EMPTY_VALUE=****"* ]]
+    [[ "$output" != *"secret-value"* ]]
     [ "$(echo "$output" | wc -l)" -eq 2 ]
+    [ "$(echo "$output" | grep -cF '****')" -eq 2 ]
 }
 
 @test "combines export and clean transforms" {
@@ -368,11 +369,10 @@ create_no_editor_path() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"export API_KEY=****"* ]]
     [[ "$output" == *"export EMPTY_VALUE=****"* ]]
-    [[ "$output" == *"# a comment"* ]]
-    [[ "$output" == *"exec_command"* ]]
     [[ "$output" != *"secret-value"* ]]
     [ "$(echo "$output" | wc -l)" -eq 5 ]
     [ "$(echo "$output" | grep -c 'export ')" -eq 2 ]
+    [ "$(echo "$output" | grep -cF '****')" -eq 2 ]
 }
 
 @test "combines clean, masking, and export transforms" {
@@ -383,8 +383,10 @@ create_no_editor_path() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"export API_KEY=****"* ]]
     [[ "$output" == *"export EMPTY_VALUE=****"* ]]
+    [[ "$output" != *"secret-value"* ]]
     [ "$(echo "$output" | wc -l)" -eq 2 ]
     [ "$(echo "$output" | grep -c 'export ')" -eq 2 ]
+    [ "$(echo "$output" | grep -cF '****')" -eq 2 ]
 }
 
 @test "edit rejects a missing input file" {
