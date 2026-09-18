@@ -101,7 +101,7 @@ Note: You will be prompted for your GPG passphrase the first time `direnv` loads
 You can use `envgpg` in your CI pipelines to decrypt environment variables securely. For example:
 
 ```sh
-eval "$(ENVGPG_PASSPHRASE="$GPG_PASSPHRASE" envgpg decrypt -ce)"
+eval "$(ENVGPG_PASSPHRASE="$SECRET_PASSPHRASE" envgpg decrypt -ce)"
 ```
 
 ## Security notes
@@ -110,14 +110,6 @@ eval "$(ENVGPG_PASSPHRASE="$GPG_PASSPHRASE" envgpg decrypt -ce)"
 - Committing the encrypted file is up to the user; this tool neither recommends nor discourages it.
 - Treat decrypted output as sensitive, including output redirected to a file or piped into another command.
 - `envgpg` does not validate dotenv syntax or manage secrets for you; it passes file content to GPG and applies the requested output transformations.
-
-## Testing
-
-The test suite uses [Bats](https://bats-core.readthedocs.io/):
-
-```sh
-bats tests/envgpg.bats
-```
 
 ## License
 
