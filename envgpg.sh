@@ -281,30 +281,30 @@ decrypt_file() {
             local value="${BASH_REMATCH[2]}"
             local suffix=""
 
+            # Extract any suffix after the assignment value
+            if [[ "$value" =~ ^(.*)([[:space:]]+|;)(.*)$ ]]; then
+                suffix="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+                value="${BASH_REMATCH[1]}"
+            fi
+
+            # Remove any suffix if the clean flag is set
             if [ "$clean_flag" = true ]; then
-                # Remove text after the assignment value
-                if [[ "$value" =~ ^(.*)([[:space:]]+|;)([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
-                    value="${BASH_REMATCH[1]}"
-                fi
-            elif [ "$mask_flag" = true ]; then
-                # Preserve text after the assignment value as a suffix
-                if [[ "$value" =~ ^(.*)([[:space:]]+|;)([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
-                    suffix="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
-                    value="${BASH_REMATCH[1]}"
-                fi
+                suffix=""
             fi
 
-            if [ "$mask_flag" = true ]; then
-                # Replace only the value; retain any preserved command suffix
-                value="****${suffix}"
-            fi
-
+            # Prepend 'export' to variable name if the export flag is set
             if [ "$export_flag" = true ]; then
-                # Emit shell-compatible assignments when export mode is enabled
-                printf '%s\n' "export ${key}=${value}" >> "$transformed_temp_file"
-            else
-                printf '%s\n' "${key}=${value}" >> "$transformed_temp_file"
+                key="export ${key}"
             fi
+
+            # Mask the value if the mask flag is set
+            if [ "$mask_flag" = true ]; then
+                value="****"
+            fi
+
+            # Write the transformed line to the temporary file
+            printf '%s\n' "${key}=${value}${suffix}" >> "$transformed_temp_file"
+
         elif [ "$clean_flag" = false ]; then
             # Keep comments and other non-assignment lines unless cleaning
             printf '%s\n' "$line" >> "$transformed_temp_file"

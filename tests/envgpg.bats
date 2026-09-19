@@ -293,9 +293,9 @@ EOF
     [ "$status" -eq 0 ]
     cmp <(echo "$output") <<'EOF'
 API_KEY=**** exec_command
-EMPTY_VALUE=**** exec_command
+EMPTY_VALUE=****;exec_command
 
-# exec_command
+# a comment
 exec_command
 SINGLE_QUOTE=**** exec_command
 DOUBLE_QUOTE=****;exec_command
@@ -310,9 +310,9 @@ EOF
     [ "$status" -eq 0 ]
     cmp <(echo "$output") <<'EOF'
 export API_KEY=secret-value exec_command
-export EMPTY_VALUE= exec_command
+export EMPTY_VALUE=;exec_command
 
-# exec_command
+# a comment
 exec_command
 export SINGLE_QUOTE='single quoted value' exec_command
 export DOUBLE_QUOTE="double quoted value";exec_command
@@ -355,9 +355,9 @@ EOF
     [ "$status" -eq 0 ]
     cmp <(echo "$output") <<'EOF'
 export API_KEY=**** exec_command
-export EMPTY_VALUE=**** exec_command
+export EMPTY_VALUE=****;exec_command
 
-# exec_command
+# a comment
 exec_command
 export SINGLE_QUOTE=**** exec_command
 export DOUBLE_QUOTE=****;exec_command
