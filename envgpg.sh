@@ -18,7 +18,7 @@ fi
 
 # Set GPG passphrase if specified
 if [ -n "$ENVGPG_PASSPHRASE" ]; then
-    GPG_ARGS+=("--passphrase" "$ENVGPG_PASSPHRASE" "--pinentry-mode" "loopback")
+    GPG_ARGS+=("--passphrase" "$ENVGPG_PASSPHRASE" "--pinentry-mode" "loopback" "--no-symkey-cache")
 fi
 
 temp_files=()
@@ -281,10 +281,15 @@ decrypt_file() {
             local value="${BASH_REMATCH[2]}"
             local suffix=""
 
+            # Match quoted and unquoted values
+            local quoted_value_regex="^(\"[^\"]*\"|'[^']*')(.*)$"
+            # Match non shell metacharacters
+            local unquoted_value_regex="^([[:alnum:]_./-]*)(.*)$"
+
             # Extract any suffix after the assignment value
-            if [[ "$value" =~ ^(.*)([[:space:]]+|;)(.*)$ ]]; then
-                suffix="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+            if [[ "$value" =~ $quoted_value_regex || "$value" =~ $unquoted_value_regex ]]; then
                 value="${BASH_REMATCH[1]}"
+                suffix="${BASH_REMATCH[2]}"
             fi
 
             # Remove any suffix if the clean flag is set

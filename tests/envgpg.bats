@@ -280,8 +280,8 @@ create_no_editor_path() {
     cmp <(echo "$output") <<'EOF'
 API_KEY=secret-value
 EMPTY_VALUE=
-SINGLE_QUOTE='single quoted value'
-DOUBLE_QUOTE="double quoted value"
+SINGLE_QUOTE='single "quoted" value'
+DOUBLE_QUOTE="double 'quoted' value"
 EOF
 }
 
@@ -292,11 +292,11 @@ EOF
 
     [ "$status" -eq 0 ]
     cmp <(echo "$output") <<'EOF'
+# a comment
 API_KEY=**** exec_command
 EMPTY_VALUE=****;exec_command
 
-# a comment
-exec_command
+not_a_variable
 SINGLE_QUOTE=**** exec_command
 DOUBLE_QUOTE=****;exec_command
 EOF
@@ -309,13 +309,13 @@ EOF
 
     [ "$status" -eq 0 ]
     cmp <(echo "$output") <<'EOF'
+# a comment
 export API_KEY=secret-value exec_command
 export EMPTY_VALUE=;exec_command
 
-# a comment
-exec_command
-export SINGLE_QUOTE='single quoted value' exec_command
-export DOUBLE_QUOTE="double quoted value";exec_command
+not_a_variable
+export SINGLE_QUOTE='single "quoted" value' exec_command
+export DOUBLE_QUOTE="double 'quoted' value";exec_command
 EOF
 }
 
@@ -342,8 +342,8 @@ EOF
     cmp <(echo "$output") <<'EOF'
 export API_KEY=secret-value
 export EMPTY_VALUE=
-export SINGLE_QUOTE='single quoted value'
-export DOUBLE_QUOTE="double quoted value"
+export SINGLE_QUOTE='single "quoted" value'
+export DOUBLE_QUOTE="double 'quoted' value"
 EOF
 }
 
@@ -354,11 +354,11 @@ EOF
 
     [ "$status" -eq 0 ]
     cmp <(echo "$output") <<'EOF'
+# a comment
 export API_KEY=**** exec_command
 export EMPTY_VALUE=****;exec_command
 
-# a comment
-exec_command
+not_a_variable
 export SINGLE_QUOTE=**** exec_command
 export DOUBLE_QUOTE=****;exec_command
 EOF
