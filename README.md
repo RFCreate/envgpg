@@ -111,6 +111,19 @@ eval "$(ENVGPG_PASSPHRASE="$SECRET_PASSPHRASE" envgpg decrypt -ce)"
 - Treat decrypted output as sensitive, including output redirected to a file or piped into another command.
 - `envgpg` does not validate dotenv syntax or manage secrets for you; it passes file content to GPG and applies the requested output transformations.
 
+## Testing
+
+This project includes a Bats test suite covering the command-line behavior, encryption/decryption flows, and editor integration.
+
+```sh
+# Run the automated checks
+bats tests/envgpg.bats
+```
+
+## Contributing
+
+Contributions are welcome. Please review [CONTRIBUTING.md](CONTRIBUTING.md) before submitting changes. The guide covers the project conventions for new flags, required test coverage, and syncing shell completions with the CLI.
+
 ## License
 
-See [LICENSE](LICENSE).
+This project is licensed under the [MIT License](LICENSE).
