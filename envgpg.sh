@@ -23,10 +23,15 @@ fi
 
 temp_files=()
 
+secure_delete() {
+    local file=$1
+    [ -f "$file" ] && shred -fz -- "$file" && rm -f -- "$file"
+}
+
 cleanup_temp_files() {
     local temp_file
     for temp_file in "${temp_files[@]}"; do
-        [ -f "$temp_file" ] && shred -uf -- "$temp_file"
+        [ -f "$temp_file" ] && secure_delete "$temp_file"
     done
 }
 
@@ -192,7 +197,7 @@ encrypt_file() {
     if [ -f "$encrypted_file" ]; then
         if [ "$yes_flag" = false ]; then
             if get_yes_no "Are you sure you want to overwrite ${encrypted_file}?"; then
-                shred -uf "$encrypted_file"
+                secure_delete "$encrypted_file"
             else
                 return 0
             fi
@@ -222,7 +227,7 @@ encrypt_file() {
             get_yes_no "Are you sure you want to remove ${file}?" || return 0
         fi
         # Remove if confirmed
-        shred -uf "$file" && [ "$verbose_flag" = true ] && echo "Removed original file: ${file}"
+        secure_delete "$file" && [ "$verbose_flag" = true ] && echo "Removed original file: ${file}"
     fi
     return 0
 }
@@ -259,32 +264,53 @@ decrypt_file() {
         return 1
     fi
 
-    # Clean the decrypted file if requested
-    if [ "$clean_flag" = true ]; then
-        if ! sed -i '/^\w\w*=.*$/!d' "$decrypted_temp_file"; then
-            echo "Error: Failed to clean ${decrypted_temp_file}." >&2
-            return 1
-        fi
+    # Send the decrypted content if no transformation flags are set
+    if [ "$clean_flag" = false ] && [ "$mask_flag" = false ] && [ "$export_flag" = false ]; then
+        cat "$decrypted_temp_file"
+        return 0
     fi
 
-    # Mask the output if requested
-    if [ "$mask_flag" = true ]; then
-        if ! sed -i 's/^\(\w\w*\)=.*$/\1=****/' "$decrypted_temp_file"; then
-            echo "Error: Failed to mask ${decrypted_temp_file}." >&2
-            return 1
-        fi
-    fi
+    # Create a temporary file to hold the transformed content
+    local transformed_temp_file
+    mktemp_to_var transformed_temp_file || return 1
 
-    # Prepend export if requested
-    if [ "$export_flag" = true ]; then
-        if ! sed -i 's/^\(\w\w*\)=\(.*\)$/export \1=\2/' "$decrypted_temp_file"; then
-            echo "Error: Failed to prepend export to ${decrypted_temp_file}." >&2
-            return 1
-        fi
-    fi
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Only transform valid shell-style variable assignments
+        if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            local key="${BASH_REMATCH[1]}"
+            local value="${BASH_REMATCH[2]}"
+            local suffix=""
 
-    # Send the decrypted content to standard output
-    cat "$decrypted_temp_file"
+            if [ "$clean_flag" = true ]; then
+                # Remove trailing command text while keeping the assignment value
+                if [[ "$value" =~ ^(.*)([[:space:]]+|;)([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
+                    value="${BASH_REMATCH[1]}"
+                fi
+            elif [[ "$value" =~ ^(.*)([[:space:]]+)([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
+                # Preserve trailing command text so masking does not discard it
+                suffix="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+                value="${BASH_REMATCH[1]}"
+            fi
+
+            if [ "$mask_flag" = true ]; then
+                # Replace only the value; retain any preserved command suffix
+                value="****${suffix}"
+            fi
+
+            if [ "$export_flag" = true ]; then
+                # Emit shell-compatible assignments when export mode is enabled
+                printf '%s\n' "export ${key}=${value}" >> "$transformed_temp_file"
+            else
+                printf '%s\n' "${key}=${value}" >> "$transformed_temp_file"
+            fi
+        elif [ "$clean_flag" = false ]; then
+            # Keep comments and other non-assignment lines unless cleaning
+            printf '%s\n' "$line" >> "$transformed_temp_file"
+        fi
+    done < "$decrypted_temp_file"
+
+    # Output the transformed content
+    cat "$transformed_temp_file"
     return 0
 }
 
