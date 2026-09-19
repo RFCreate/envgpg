@@ -277,28 +277,29 @@ create_no_editor_path() {
     run "$SCRIPT" decrypt -c test.env.gpg
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"API_KEY=secret-value"* ]]
-    [[ "$output" == *"EMPTY_VALUE="* ]]
-    [[ "$output" == *"SINGLE_QUOTE='single quoted value'"* ]]
-    [[ "$output" == *'DOUBLE_QUOTE="double quoted value"'* ]]
-    [[ "$output" != *"exec_command"* ]]
-    [ "$(echo "$output" | wc -l)" -eq 4 ]
+    cmp <(echo "$output") <<'EOF'
+API_KEY=secret-value
+EMPTY_VALUE=
+SINGLE_QUOTE='single quoted value'
+DOUBLE_QUOTE="double quoted value"
+EOF
 }
 
-@test "decrypt masks values without masking comments" {
+@test "decrypt masks variable values" {
     create_encrypted_fixture
 
     run "$SCRIPT" decrypt -m test.env.gpg
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"API_KEY=****"* ]]
-    [[ "$output" == *"EMPTY_VALUE=****"* ]]
-    [[ "$output" == *"SINGLE_QUOTE=****"* ]]
-    [[ "$output" == *"DOUBLE_QUOTE=****"* ]]
-    [[ "$output" != *"secret-value"* ]]
-    [ "$(echo "$output" | wc -l)" -eq 7 ]
-    [ "$(echo "$output" | grep -cF '****')" -eq 4 ]
-    [ "$(echo "$output" | grep -c 'exec_command')" -eq 5 ]
+    cmp <(echo "$output") <<'EOF'
+API_KEY=**** exec_command
+EMPTY_VALUE=**** exec_command
+
+# exec_command
+exec_command
+SINGLE_QUOTE=**** exec_command
+DOUBLE_QUOTE=****;exec_command
+EOF
 }
 
 @test "decrypt prepends export to variable assignments" {
@@ -307,8 +308,15 @@ create_no_editor_path() {
     run "$SCRIPT" decrypt -e test.env.gpg
 
     [ "$status" -eq 0 ]
-    [ "$(echo "$output" | wc -l)" -eq 7 ]
-    [ "$(echo "$output" | grep -c 'export ')" -eq 4 ]
+    cmp <(echo "$output") <<'EOF'
+export API_KEY=secret-value exec_command
+export EMPTY_VALUE= exec_command
+
+# exec_command
+exec_command
+export SINGLE_QUOTE='single quoted value' exec_command
+export DOUBLE_QUOTE="double quoted value";exec_command
+EOF
 }
 
 @test "decrypt combines clean and masking transforms" {
@@ -317,14 +325,12 @@ create_no_editor_path() {
     run "$SCRIPT" decrypt -c -m test.env.gpg
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"API_KEY=****"* ]]
-    [[ "$output" == *"EMPTY_VALUE=****"* ]]
-    [[ "$output" == *"SINGLE_QUOTE=****"* ]]
-    [[ "$output" == *"DOUBLE_QUOTE=****"* ]]
-    [[ "$output" != *"secret-value"* ]]
-    [[ "$output" != *"exec_command"* ]]
-    [ "$(echo "$output" | wc -l)" -eq 4 ]
-    [ "$(echo "$output" | grep -cF '****')" -eq 4 ]
+    cmp <(echo "$output") <<'EOF'
+API_KEY=****
+EMPTY_VALUE=****
+SINGLE_QUOTE=****
+DOUBLE_QUOTE=****
+EOF
 }
 
 @test "decrypt combines clean and export transforms" {
@@ -333,9 +339,12 @@ create_no_editor_path() {
     run "$SCRIPT" decrypt -c -e test.env.gpg
 
     [ "$status" -eq 0 ]
-    [[ "$output" != *"exec_command"* ]]
-    [ "$(echo "$output" | wc -l)" -eq 4 ]
-    [ "$(echo "$output" | grep -c 'export ')" -eq 4 ]
+    cmp <(echo "$output") <<'EOF'
+export API_KEY=secret-value
+export EMPTY_VALUE=
+export SINGLE_QUOTE='single quoted value'
+export DOUBLE_QUOTE="double quoted value"
+EOF
 }
 
 @test "decrypt combines export and masking transforms" {
@@ -344,15 +353,15 @@ create_no_editor_path() {
     run "$SCRIPT" decrypt -e -m test.env.gpg
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"export API_KEY=****"* ]]
-    [[ "$output" == *"export EMPTY_VALUE=****"* ]]
-    [[ "$output" == *"export SINGLE_QUOTE=****"* ]]
-    [[ "$output" == *"export DOUBLE_QUOTE=****"* ]]
-    [[ "$output" != *"secret-value"* ]]
-    [ "$(echo "$output" | wc -l)" -eq 7 ]
-    [ "$(echo "$output" | grep -c 'export ')" -eq 4 ]
-    [ "$(echo "$output" | grep -cF '****')" -eq 4 ]
-    [ "$(echo "$output" | grep -c 'exec_command')" -eq 5 ]
+    cmp <(echo "$output") <<'EOF'
+export API_KEY=**** exec_command
+export EMPTY_VALUE=**** exec_command
+
+# exec_command
+exec_command
+export SINGLE_QUOTE=**** exec_command
+export DOUBLE_QUOTE=****;exec_command
+EOF
 }
 
 @test "decrypt combines clean, masking, and export transforms" {
@@ -361,13 +370,12 @@ create_no_editor_path() {
     run "$SCRIPT" decrypt -c -m -e test.env.gpg
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"export API_KEY=****"* ]]
-    [[ "$output" == *"export EMPTY_VALUE=****"* ]]
-    [[ "$output" != *"secret-value"* ]]
-    [[ "$output" != *"exec_command"* ]]
-    [ "$(echo "$output" | wc -l)" -eq 4 ]
-    [ "$(echo "$output" | grep -c 'export ')" -eq 4 ]
-    [ "$(echo "$output" | grep -cF '****')" -eq 4 ]
+    cmp <(echo "$output") <<'EOF'
+export API_KEY=****
+export EMPTY_VALUE=****
+export SINGLE_QUOTE=****
+export DOUBLE_QUOTE=****
+EOF
 }
 
 @test "edit rejects a missing input file" {

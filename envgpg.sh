@@ -282,14 +282,16 @@ decrypt_file() {
             local suffix=""
 
             if [ "$clean_flag" = true ]; then
-                # Remove trailing command text while keeping the assignment value
+                # Remove text after the assignment value
                 if [[ "$value" =~ ^(.*)([[:space:]]+|;)([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
                     value="${BASH_REMATCH[1]}"
                 fi
-            elif [[ "$value" =~ ^(.*)([[:space:]]+)([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
-                # Preserve trailing command text so masking does not discard it
-                suffix="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
-                value="${BASH_REMATCH[1]}"
+            elif [ "$mask_flag" = true ]; then
+                # Preserve text after the assignment value as a suffix
+                if [[ "$value" =~ ^(.*)([[:space:]]+|;)([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
+                    suffix="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+                    value="${BASH_REMATCH[1]}"
+                fi
             fi
 
             if [ "$mask_flag" = true ]; then
