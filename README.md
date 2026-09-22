@@ -94,7 +94,8 @@ And allow `direnv` to load the environment:
 direnv allow
 ```
 
-Note: You will be prompted for your GPG passphrase the first time `direnv` loads the environment and whenever the passphrase cache expires.
+> [!NOTE]
+> You will be prompted for your GPG passphrase the first time `direnv` loads the environment and whenever the passphrase cache expires.
 
 ## Use it in CI pipelines
 
@@ -104,7 +105,10 @@ You can use `envgpg` in your CI pipelines to decrypt environment variables secur
 eval "$(ENVGPG_PASSPHRASE="$SECRET_PASSPHRASE" envgpg decrypt -ce)"
 ```
 
-## Security notes
+> [!CAUTION]
+> Although the `-c` flag uses regex filtering to prevent command execution, it is advised to save a hash of the encrypted file and compare it immediately before decrypting it.
+
+## Security considerations
 
 - Keep the GPG passphrase safe. Losing it means the encrypted file cannot be recovered by this tool.
 - Committing the encrypted file is up to the user; this tool neither recommends nor discourages it.
