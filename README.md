@@ -101,8 +101,11 @@ direnv allow
 
 You can use `envgpg` in your CI pipelines to decrypt environment variables securely. For example:
 
-```sh
-eval "$(ENVGPG_PASSPHRASE="$SECRET_PASSPHRASE" envgpg decrypt -ce)"
+```yaml
+run: |
+  eval "$(envgpg decrypt -ce)"
+env:
+  ENVGPG_PASSPHRASE: ${{ secrets.ENVGPG_PASSPHRASE }}
 ```
 
 > [!CAUTION]
