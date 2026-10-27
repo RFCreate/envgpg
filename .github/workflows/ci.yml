@@ -15,7 +15,7 @@ jobs:
       - name: Setup Bats
         uses: bats-core/bats-action@4.0.0
       - name: Run Bats tests
-        run: bats tests/envgpg.bats
+        run: bats --print-output-on-failure tests/envgpg.bats
   lint:
     name: ShellCheck
     runs-on: ubuntu-latest
